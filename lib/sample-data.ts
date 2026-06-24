@@ -8,386 +8,404 @@ import type {
 export const sampleReadingExercises: ReadingExercise[] = [
   {
     id: "r1",
-    title: "La vie quotidienne à Montréal",
+    title: "La vie quotidienne a Montreal",
     level: "A2",
     topic: "Vie urbaine",
     time_limit: 600,
     created_at: new Date().toISOString(),
-    text: `Montréal est une grande ville du Québec, au Canada. C'est une ville bilingue où les gens parlent français et anglais. Environ 4 millions de personnes habitent dans la région de Montréal.
+    text: `Montreal est une grande ville du Quebec, au Canada. C'est une ville bilingue ou les gens parlent francais et anglais. Environ 4 millions de personnes habitent dans la region de Montreal.
 
-La ville est connue pour ses festivals, notamment le Festival International de Jazz de Montréal qui attire des musiciens du monde entier chaque été. Les Montréalais aiment aussi le Festival Juste pour Rire, un festival de comédie très populaire.
+La ville est connue pour ses festivals, notamment le Festival International de Jazz de Montreal qui attire des musiciens du monde entier chaque ete. Les Montreалais aiment aussi le Festival Juste pour Rire, un festival de comedie tres populaire.
 
-Dans les quartiers de Montréal, on trouve beaucoup de restaurants, de cafés et de boutiques. Le Vieux-Montréal est un quartier historique avec des bâtiments anciens et des rues pavées. C'est un endroit très touristique.
+Dans les quartiers de Montreal, on trouve beaucoup de restaurants, de cafes et de boutiques. Le Vieux-Montreal est un quartier historique avec des batiments anciens et des rues pavees. C'est un endroit tres touristique.
 
-Les transports en commun à Montréal sont bien développés. Le métro, les autobus et les pistes cyclables permettent aux habitants de se déplacer facilement dans la ville. Beaucoup de Montréalais utilisent le vélo, surtout en été.`,
+Les transports en commun a Montreal sont bien developpes. Le metro, les autobus et les pistes cyclables permettent aux habitants de se deplacer facilement dans la ville. Beaucoup de Montreалais utilisent le velo, surtout en ete.`,
     questions: [
-      {
-        id: "q1",
-        question: "Combien de personnes habitent dans la région de Montréal ?",
-        options: [
-          "Environ 1 million",
-          "Environ 2 millions",
-          "Environ 4 millions",
-          "Environ 6 millions",
-        ],
-        correct_answer: 2,
-        explanation:
-          "Le texte dit 'Environ 4 millions de personnes habitent dans la région de Montréal.'",
-      },
-      {
-        id: "q2",
-        question: "Qu'est-ce que le Festival Juste pour Rire ?",
-        options: [
-          "Un festival de musique",
-          "Un festival de comédie",
-          "Un festival de cinéma",
-          "Un festival de danse",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte mentionne que c'est 'un festival de comédie très populaire'.",
-      },
-      {
-        id: "q3",
-        question: "Comment se caractérise le Vieux-Montréal ?",
-        options: [
-          "C'est un quartier moderne avec des gratte-ciels",
-          "C'est un quartier résidentiel calme",
-          "C'est un quartier historique avec des bâtiments anciens",
-          "C'est un quartier industriel",
-        ],
-        correct_answer: 2,
-        explanation:
-          "Le texte décrit le Vieux-Montréal comme 'un quartier historique avec des bâtiments anciens et des rues pavées'.",
-      },
-      {
-        id: "q4",
-        question:
-          "Quel moyen de transport les Montréalais utilisent-ils beaucoup en été ?",
-        options: ["La voiture", "Le train", "Le vélo", "Le taxi"],
-        correct_answer: 2,
-        explanation:
-          "Le texte précise 'Beaucoup de Montréalais utilisent le vélo, surtout en été.'",
-      },
+      { id: "q1", question: "Combien de personnes habitent dans la region de Montreal ?", options: ["Environ 1 million", "Environ 2 millions", "Environ 4 millions", "Environ 6 millions"], correct_answer: 2, explanation: "Le texte dit 'Environ 4 millions de personnes habitent dans la region de Montreal.'" },
+      { id: "q2", question: "Qu'est-ce que le Festival Juste pour Rire ?", options: ["Un festival de musique", "Un festival de comedie", "Un festival de cinema", "Un festival de danse"], correct_answer: 1, explanation: "Le texte mentionne que c'est 'un festival de comedie tres populaire'." },
+      { id: "q3", question: "Comment se caracterise le Vieux-Montreal ?", options: ["C'est un quartier moderne", "C'est un quartier residentiel", "C'est un quartier historique", "C'est un quartier industriel"], correct_answer: 2, explanation: "Le texte decrit le Vieux-Montreal comme 'un quartier historique avec des batiments anciens'." },
+      { id: "q4", question: "Quel moyen de transport est populaire en ete a Montreal ?", options: ["La voiture", "Le train", "Le velo", "Le taxi"], correct_answer: 2, explanation: "Le texte precise 'Beaucoup de Montreалais utilisent le velo, surtout en ete.'" },
     ],
   },
   {
     id: "r2",
-    title: "L'immigration au Québec",
+    title: "L'immigration au Quebec",
     level: "B1",
-    topic: "Immigration et société",
+    topic: "Societe",
     time_limit: 900,
     created_at: new Date().toISOString(),
-    text: `Le Québec accueille chaque année des milliers d'immigrants venus du monde entier. Ces nouveaux arrivants s'installent au Québec pour diverses raisons : rejoindre leur famille, trouver un emploi, fuir des situations difficiles dans leur pays d'origine, ou encore profiter d'une meilleure qualité de vie.
+    text: `Le Quebec accueille chaque annee des milliers d'immigrants venus des quatre coins du monde. Ces nouveaux arrivants choisissent le Quebec pour diverses raisons : la qualite de vie, les opportunites professionnelles et la culture francophone unique.
 
-Le gouvernement québécois met en place différents programmes pour faciliter l'intégration des immigrants. Ces programmes comprennent des cours de français gratuits, des séances d'information sur la société québécoise, et des services d'aide à la recherche d'emploi. La maîtrise du français est considérée comme essentielle pour réussir son intégration au Québec.
+Pour s'integrer a la societe quebecoise, les immigrants doivent souvent apprendre le francais, la langue officielle de la province. De nombreux services gratuits sont offerts pour aider les nouveaux arrivants, comme des cours de francais et des programmes d'integration.
 
-La culture québécoise est le résultat d'un mélange de différentes influences. L'héritage franco-canadien coexiste avec les apports des communautés autochtones, des immigrants anglophones et des nombreuses vagues d'immigration qui ont façonné la province au fil des siècles.
+Le marche du travail quebecois offre de nombreuses possibilites dans des secteurs comme la technologie, la sante et le genie. Cependant, faire reconnaitre ses diplomes etrangers peut parfois etre un defi pour les nouveaux arrivants.
 
-Malgré les efforts d'intégration, certains immigrants font face à des défis. La reconnaissance des diplômes étrangers, la discrimination dans le milieu du travail et le choc culturel peuvent représenter des obstacles importants. Des organismes communautaires travaillent activement pour aider les nouveaux arrivants à surmonter ces difficultés.`,
+La culture quebecoise est un melange unique de traditions francophones et d'influences nord-americaines. Les immigrants enrichissent cette culture en apportant leurs propres traditions, cuisines et perspectives.`,
     questions: [
-      {
-        id: "q1",
-        question:
-          "Pourquoi les immigrants choisissent-ils de s'installer au Québec ? (Plusieurs raisons sont mentionnées)",
-        options: [
-          "Uniquement pour des raisons économiques",
-          "Pour diverses raisons incluant la famille, l'emploi et la qualité de vie",
-          "Seulement pour fuir des situations difficiles",
-          "Principalement pour apprendre le français",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte mentionne plusieurs raisons : rejoindre la famille, trouver un emploi, fuir des situations difficiles, et profiter d'une meilleure qualité de vie.",
-      },
-      {
-        id: "q2",
-        question:
-          "Qu'est-ce que le gouvernement québécois fait pour aider les immigrants ?",
-        options: [
-          "Il leur offre des maisons gratuites",
-          "Il propose des cours de français et des services d'emploi",
-          "Il leur donne de l'argent pendant 5 ans",
-          "Il leur accorde la citoyenneté immédiatement",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte mentionne des cours de français gratuits, des séances d'information et des services d'aide à la recherche d'emploi.",
-      },
-      {
-        id: "q3",
-        question:
-          "Quel est le principal défi mentionné pour les immigrants dans le milieu du travail ?",
-        options: [
-          "Ne pas parler anglais",
-          "La discrimination",
-          "Manque de transports",
-          "Coût de la vie trop élevé",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte cite 'la discrimination dans le milieu du travail' comme obstacle important.",
-      },
-      {
-        id: "q4",
-        question:
-          "Comment est décrite la culture québécoise dans le texte ?",
-        options: [
-          "Comme une culture purement française",
-          "Comme le résultat d'un mélange de différentes influences",
-          "Comme une culture principalement autochtone",
-          "Comme une culture exclusivement anglophone",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte dit que 'La culture québécoise est le résultat d'un mélange de différentes influences'.",
-      },
+      { id: "q1", question: "Pourquoi les immigrants choisissent-ils le Quebec ?", options: ["Uniquement pour le travail", "Pour la qualite de vie, les opportunites et la culture", "A cause du climat", "Pour la langue anglaise"], correct_answer: 1, explanation: "Le texte mentionne 'la qualite de vie, les opportunites professionnelles et la culture francophone unique'." },
+      { id: "q2", question: "Qu'est-ce qui peut etre difficile pour les nouveaux arrivants ?", options: ["Trouver un logement", "Apprendre l'anglais", "Faire reconnaitre ses diplomes etrangers", "Obtenir un visa"], correct_answer: 2, explanation: "Le texte dit 'faire reconnaitre ses diplomes etrangers peut parfois etre un defi'." },
+      { id: "q3", question: "Quelle est la langue officielle du Quebec ?", options: ["L'anglais", "Le francais", "Les deux", "L'inuktitut"], correct_answer: 1, explanation: "Le texte precise que le francais est 'la langue officielle de la province'." },
+      { id: "q4", question: "Dans quels secteurs y a-t-il des opportunites au Quebec ?", options: ["Agriculture et peche", "Technologie, sante et genie", "Tourisme uniquement", "Commerce international"], correct_answer: 1, explanation: "Le texte mentionne 'la technologie, la sante et le genie'." },
     ],
   },
   {
     id: "r3",
-    title: "Les changements climatiques et l'environnement québécois",
+    title: "Le systeme de sante au Quebec",
     level: "B2",
-    topic: "Environnement",
+    topic: "Sante",
     time_limit: 1200,
     created_at: new Date().toISOString(),
-    text: `Le Québec, province aux ressources naturelles abondantes et aux hivers rigoureux, n'échappe pas aux conséquences des changements climatiques. Les scientifiques observent depuis plusieurs décennies une transformation profonde des écosystèmes québécois qui soulève des préoccupations importantes pour l'avenir de la province.
+    text: `Le systeme de sante quebecois est un systeme public finance par les impots des citoyens. Tous les residents permanents et les citoyens canadiens ont acces aux soins de sante de base gratuitement, grace a la carte d'assurance maladie, communement appelee la carte soleil.
 
-Le réchauffement climatique se manifeste de façon particulièrement prononcée dans le nord du Québec, où les températures augmentent deux à trois fois plus vite que dans le reste du monde. Cette situation affecte directement les communautés autochtones du Grand Nord, dont le mode de vie traditionnel dépend de la faune arctique et de la stabilité des conditions climatiques. La fonte du pergélisol compromet la stabilité des infrastructures et bouleverse les pratiques ancestrales de chasse et de pêche.
+Toutefois, ce systeme fait face a plusieurs defis importants. Les delais d'attente dans les urgences peuvent etre tres longs, parfois plusieurs heures. De plus, de nombreux Quebecois n'ont pas de medecin de famille et doivent se tourner vers des cliniques sans rendez-vous ou des groupes de medecine de famille.
 
-Sur le plan économique, les changements climatiques représentent à la fois des défis et des opportunités. L'industrie forestière doit s'adapter à la migration des espèces d'arbres et à l'augmentation des risques d'incendies de forêt. L'agriculture québécoise, quant à elle, bénéficie d'une saison de croissance plus longue mais doit faire face à des événements météorologiques extrêmes plus fréquents.
+Pour faire face a ces problemes, le gouvernement quebecois a mis en place plusieurs reformes. La creation des Groupes de Medecine de Famille (GMF) vise a ameliorer l'acces aux soins de premiere ligne. De plus, les infirmieres praticiciennes specialisees jouent un role de plus en plus important dans le systeme.
 
-Face à ces enjeux, le gouvernement québécois a mis en place un plan d'action climatique ambitieux, visant à réduire les émissions de gaz à effet de serre de 37,5% d'ici 2030 par rapport aux niveaux de 1990. Des investissements massifs dans les énergies renouvelables, les transports électriques et l'efficacité énergétique des bâtiments sont prévus pour atteindre ces objectifs.`,
+Les innovations technologiques transforment egalement le systeme de sante. La teleremedecine permet aux patients de consulter un medecin en ligne, reduisant ainsi les deplacements et les delais d'attente. Les dossiers medicaux electroniques facilitent le partage d'informations entre professionnels de la sante.`,
     questions: [
-      {
-        id: "q1",
-        question:
-          "Où les effets du réchauffement climatique sont-ils les plus prononcés au Québec ?",
-        options: [
-          "Dans les centres urbains",
-          "Dans le nord du Québec",
-          "Sur les côtes maritimes",
-          "Dans les régions agricoles",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte précise que 'le réchauffement climatique se manifeste de façon particulièrement prononcée dans le nord du Québec'.",
-      },
-      {
-        id: "q2",
-        question:
-          "Comment les changements climatiques affectent-ils les communautés autochtones du Grand Nord ?",
-        options: [
-          "Positivement, car l'hiver est moins rigoureux",
-          "Négativement, car leur mode de vie traditionnel est perturbé",
-          "Ils n'ont aucun impact sur ces communautés",
-          "En améliorant leurs conditions économiques",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte mentionne que cela 'bouleverse les pratiques ancestrales de chasse et de pêche' et 'compromet la stabilité des infrastructures'.",
-      },
-      {
-        id: "q3",
-        question:
-          "Quel est l'objectif du gouvernement québécois concernant les émissions de gaz à effet de serre ?",
-        options: [
-          "Les réduire de 25% d'ici 2025",
-          "Les éliminer complètement d'ici 2050",
-          "Les réduire de 37,5% d'ici 2030",
-          "Les stabiliser au niveau actuel",
-        ],
-        correct_answer: 2,
-        explanation:
-          "Le texte mentionne 'réduire les émissions de gaz à effet de serre de 37,5% d'ici 2030 par rapport aux niveaux de 1990'.",
-      },
-      {
-        id: "q4",
-        question:
-          "Quel avantage les changements climatiques apportent-ils à l'agriculture québécoise ?",
-        options: [
-          "Des prix plus élevés pour les produits",
-          "Une saison de croissance plus longue",
-          "Moins de ravageurs agricoles",
-          "Des subventions gouvernementales plus importantes",
-        ],
-        correct_answer: 1,
-        explanation:
-          "Le texte indique que 'L'agriculture québécoise bénéficie d'une saison de croissance plus longue'.",
-      },
+      { id: "q1", question: "Comment s'appelle la carte d'assurance maladie au Quebec ?", options: ["La carte bleue", "La carte soleil", "La carte sante", "La carte medicare"], correct_answer: 1, explanation: "Le texte la nomme 'communement appelee la carte soleil'." },
+      { id: "q2", question: "Quel est un des principaux defis du systeme de sante ?", options: ["Le cout trop eleve", "Les longs delais d'attente", "Le manque de technologie", "L'absence de specialistes"], correct_answer: 1, explanation: "Le texte mentionne 'Les delais d'attente dans les urgences peuvent etre tres longs'." },
+      { id: "q3", question: "Que sont les GMF ?", options: ["Des hopitaux prives", "Des pharmacies", "Des Groupes de Medecine de Famille", "Des cliniques specialisees"], correct_answer: 2, explanation: "GMF signifie 'Groupes de Medecine de Famille'." },
+      { id: "q4", question: "Comment la teleremedecine aide-t-elle les patients ?", options: ["En reduisant les couts", "En eliminant les urgences", "En permettant de consulter en ligne", "En formant plus de medecins"], correct_answer: 2, explanation: "Le texte dit 'la teleremedecine permet aux patients de consulter un medecin en ligne'." },
     ],
   },
 ];
 
+// 20 Listening exercises with transcript (used for browser TTS)
 export const sampleListeningExercises: ListeningExercise[] = [
   {
     id: "l1",
-    title: "Se présenter et parler de sa famille",
+    title: "Se presenter et parler de sa famille",
     level: "A1",
-    audio_url: "/audio/a1-famille.mp3",
-    duration: 120,
-    topic: "Famille et présentation",
+    audio_url: "",
+    duration: 60,
+    topic: "Famille et presentation",
     created_at: new Date().toISOString(),
-    transcript:
-      "Bonjour, je m'appelle Marie Tremblay. J'ai trente-deux ans. Je suis de Montréal. J'ai une famille de quatre personnes : mon mari, mes deux enfants et moi. Mon mari s'appelle Pierre. Il est ingénieur. Ma fille s'appelle Sophie, elle a huit ans, et mon fils s'appelle Thomas, il a cinq ans. Nous habitons dans un appartement dans le quartier Rosemont.",
+    transcript: "Bonjour, je m'appelle Marie. J'ai trente ans. Je suis originaire de France mais j'habite maintenant a Montreal. J'ai une petite famille. Mon mari s'appelle Pierre et nous avons deux enfants, un garcon de cinq ans et une fille de trois ans. Nous aimons beaucoup vivre au Quebec.",
     questions: [
-      {
-        id: "q1",
-        question: "Quel est le prénom de la femme qui parle ?",
-        options: ["Sophie", "Marie", "Claire", "Julie"],
-        correct_answer: 1,
-        explanation:
-          "La femme dit 'je m'appelle Marie Tremblay' au début.",
-      },
-      {
-        id: "q2",
-        question: "Combien d'enfants a Marie ?",
-        options: ["Un enfant", "Deux enfants", "Trois enfants", "Pas d'enfants"],
-        correct_answer: 1,
-        explanation: "Elle dit 'mes deux enfants'.",
-      },
-      {
-        id: "q3",
-        question: "Quel est le métier du mari de Marie ?",
-        options: ["Médecin", "Enseignant", "Ingénieur", "Avocat"],
-        correct_answer: 2,
-        explanation: "Elle dit 'Il est ingénieur'.",
-      },
-      {
-        id: "q4",
-        question: "Dans quel quartier habitent-ils ?",
-        options: ["Plateau", "Rosemont", "Outremont", "Verdun"],
-        correct_answer: 1,
-        explanation:
-          "Elle dit 'Nous habitons dans un appartement dans le quartier Rosemont.'",
-      },
+      { id: "q1", question: "Comment s'appelle cette personne ?", options: ["Sophie", "Marie", "Claire", "Julie"], correct_answer: 1, explanation: "Elle dit 'je m'appelle Marie'." },
+      { id: "q2", question: "Quel age a-t-elle ?", options: ["20 ans", "25 ans", "30 ans", "35 ans"], correct_answer: 2, explanation: "Elle dit 'J'ai trente ans'." },
+      { id: "q3", question: "Combien d'enfants a-t-elle ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Elle dit 'nous avons deux enfants'." },
+      { id: "q4", question: "D'ou vient-elle ?", options: ["Du Quebec", "De Belgique", "De France", "De Suisse"], correct_answer: 2, explanation: "Elle dit 'je suis originaire de France'." },
     ],
   },
   {
     id: "l2",
-    title: "Une annonce à la radio",
-    level: "B1",
-    audio_url: "/audio/b1-radio.mp3",
-    duration: 180,
-    topic: "Médias et information",
+    title: "Au marche - faire ses courses",
+    level: "A1",
+    audio_url: "",
+    duration: 75,
+    topic: "Vie quotidienne",
     created_at: new Date().toISOString(),
-    transcript:
-      "Ici Radio-Québec, bonjour. Voici les informations de ce matin. La ville de Montréal annonce la fermeture temporaire du pont Jacques-Cartier pour travaux de rénovation, à partir du vendredi 15 mars jusqu'au dimanche 17 mars. Les automobilistes sont priés d'emprunter le pont Champlain ou le tunnel Louis-Hippolyte-La Fontaine comme itinéraires alternatifs. La Société de transport de Montréal augmentera la fréquence de ses services de bus et de métro pendant cette période pour faciliter les déplacements. Pour plus d'informations, consultez le site web de la ville ou appelez le 311.",
+    transcript: "Bonjour madame. Bonjour. Je voudrais des pommes s'il vous plait. Oui, combien en voulez-vous ? Six pommes s'il vous plait. Et avec ca ? Je voudrais aussi du pain et du lait. Ca fait cinq dollars cinquante. Voila dix dollars. Et votre monnaie, quatre dollars cinquante. Merci beaucoup. Bonne journee.",
     questions: [
-      {
-        id: "q1",
-        question: "Quel pont sera fermé pour des travaux ?",
-        options: [
-          "Pont Champlain",
-          "Pont Jacques-Cartier",
-          "Pont Victoria",
-          "Pont Mercier",
-        ],
-        correct_answer: 1,
-        explanation: "L'annonce mentionne 'la fermeture temporaire du pont Jacques-Cartier'.",
-      },
-      {
-        id: "q2",
-        question: "Combien de temps durera la fermeture ?",
-        options: [
-          "Un jour",
-          "Deux jours",
-          "Trois jours",
-          "Une semaine",
-        ],
-        correct_answer: 2,
-        explanation: "La fermeture va du vendredi 15 au dimanche 17 mars, soit 3 jours.",
-      },
-      {
-        id: "q3",
-        question:
-          "Que fera la STM pendant la fermeture ?",
-        options: [
-          "Elle sera fermée",
-          "Elle augmentera la fréquence de ses services",
-          "Elle augmentera ses tarifs",
-          "Elle offrira des trajets gratuits",
-        ],
-        correct_answer: 1,
-        explanation:
-          "L'annonce dit que la STM 'augmentera la fréquence de ses services de bus et de métro'.",
-      },
+      { id: "q1", question: "Que veut acheter la cliente en premier ?", options: ["Du pain", "Du lait", "Des pommes", "Des oranges"], correct_answer: 2, explanation: "Elle demande 'des pommes s'il vous plait'." },
+      { id: "q2", question: "Combien de pommes veut-elle ?", options: ["Quatre", "Cinq", "Six", "Sept"], correct_answer: 2, explanation: "Elle dit 'Six pommes s'il vous plait'." },
+      { id: "q3", question: "Combien coute tout ?", options: ["4,50$", "5,50$", "6,50$", "10$"], correct_answer: 1, explanation: "Le vendeur dit 'Ca fait cinq dollars cinquante'." },
+      { id: "q4", question: "Combien donne-t-elle ?", options: ["5$", "7$", "8$", "10$"], correct_answer: 3, explanation: "Elle donne 'dix dollars'." },
+    ],
+  },
+  {
+    id: "l3",
+    title: "La routine du matin",
+    level: "A1",
+    audio_url: "",
+    duration: 80,
+    topic: "Vie quotidienne",
+    created_at: new Date().toISOString(),
+    transcript: "Tous les matins, je me leve a sept heures. Je prends une douche et je m'habille. Ensuite, je mange mon petit-dejeuner. Je bois du cafe et je mange des toasts. A huit heures, je pars au travail en metro. Le trajet dure vingt minutes. J'arrive au bureau a huit heures et demie.",
+    questions: [
+      { id: "q1", question: "A quelle heure se leve-t-il ?", options: ["6h", "7h", "8h", "9h"], correct_answer: 1, explanation: "Il dit 'je me leve a sept heures'." },
+      { id: "q2", question: "Que boit-il au petit-dejeuner ?", options: ["Du the", "Du jus", "Du cafe", "Du lait"], correct_answer: 2, explanation: "Il dit 'Je bois du cafe'." },
+      { id: "q3", question: "Comment va-t-il au travail ?", options: ["En voiture", "A pied", "En velo", "En metro"], correct_answer: 3, explanation: "Il dit 'je pars au travail en metro'." },
+      { id: "q4", question: "Combien de temps dure le trajet ?", options: ["10 minutes", "15 minutes", "20 minutes", "30 minutes"], correct_answer: 2, explanation: "Il dit 'Le trajet dure vingt minutes'." },
+    ],
+  },
+  {
+    id: "l4",
+    title: "Decrire son appartement",
+    level: "A2",
+    audio_url: "",
+    duration: 90,
+    topic: "Logement",
+    created_at: new Date().toISOString(),
+    transcript: "Mon appartement est situe dans le quartier Plateau-Mont-Royal a Montreal. C'est un appartement de trois pieces avec deux chambres, un salon et une cuisine moderne. Il y a aussi une salle de bain et un balcon. L'appartement est au troisieme etage. Le loyer est de mille deux cents dollars par mois. Je suis tres content de mon logement car il est proche des transports en commun et des commerces.",
+    questions: [
+      { id: "q1", question: "Dans quel quartier est l'appartement ?", options: ["Rosemont", "Plateau-Mont-Royal", "Outremont", "Verdun"], correct_answer: 1, explanation: "Il dit 'dans le quartier Plateau-Mont-Royal'." },
+      { id: "q2", question: "Combien de chambres y a-t-il ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il dit 'deux chambres'." },
+      { id: "q3", question: "Quel est le loyer mensuel ?", options: ["900$", "1000$", "1100$", "1200$"], correct_answer: 3, explanation: "Il dit 'mille deux cents dollars par mois'." },
+      { id: "q4", question: "A quel etage est l'appartement ?", options: ["Premier", "Deuxieme", "Troisieme", "Quatrieme"], correct_answer: 2, explanation: "Il dit 'au troisieme etage'." },
+    ],
+  },
+  {
+    id: "l5",
+    title: "Prendre rendez-vous chez le medecin",
+    level: "A2",
+    audio_url: "",
+    duration: 100,
+    topic: "Sante",
+    created_at: new Date().toISOString(),
+    transcript: "Clinique medicale Cote-des-Neiges, bonjour. Bonjour, je voudrais prendre un rendez-vous avec le docteur Tremblay s'il vous plait. Oui, pour quand ? Le plus tot possible, j'ai mal a la gorge depuis trois jours. Est-ce que mardi a quatorze heures vous convient ? Oui parfait. Votre nom ? Carlos Martinez. Et votre numero de telephone ? C'est le cinq cent douze, trois cent quarante-cinq, six cent soixante-dix-huit. Tres bien, a mardi monsieur Martinez.",
+    questions: [
+      { id: "q1", question: "Avec quel medecin veut-il un rendez-vous ?", options: ["Docteur Leblanc", "Docteur Martin", "Docteur Tremblay", "Docteur Gagnon"], correct_answer: 2, explanation: "Il demande 'le docteur Tremblay'." },
+      { id: "q2", question: "Depuis combien de temps est-il malade ?", options: ["Un jour", "Deux jours", "Trois jours", "Une semaine"], correct_answer: 2, explanation: "Il dit 'depuis trois jours'." },
+      { id: "q3", question: "Quand est le rendez-vous ?", options: ["Lundi a 14h", "Mardi a 14h", "Mercredi a 14h", "Jeudi a 14h"], correct_answer: 1, explanation: "La receptionniste propose 'mardi a quatorze heures'." },
+      { id: "q4", question: "Quel est son probleme de sante ?", options: ["Mal de tete", "Mal au dos", "Mal a la gorge", "Mal au ventre"], correct_answer: 2, explanation: "Il dit 'j'ai mal a la gorge'." },
+    ],
+  },
+  {
+    id: "l6",
+    title: "Les transports en commun a Montreal",
+    level: "A2",
+    audio_url: "",
+    duration: 110,
+    topic: "Transport",
+    created_at: new Date().toISOString(),
+    transcript: "Le reseau de transport en commun de Montreal comprend le metro, les autobus et le train de banlieue. Le metro a quatre lignes et soixante-huit stations. Il fonctionne de cinq heures trente du matin jusqu'a une heure du matin. Un billet simple coute trois dollars cinquante. Il est aussi possible d'acheter des passes mensuelles pour les usagers reguliers. Le reseau de bus complemente le metro et couvre les quartiers non desservis par le metro.",
+    questions: [
+      { id: "q1", question: "Combien de lignes de metro y a-t-il ?", options: ["Deux", "Trois", "Quatre", "Cinq"], correct_answer: 2, explanation: "Le texte dit 'quatre lignes'." },
+      { id: "q2", question: "A quelle heure ouvre le metro le matin ?", options: ["5h", "5h30", "6h", "6h30"], correct_answer: 1, explanation: "Il ouvre 'a cinq heures trente du matin'." },
+      { id: "q3", question: "Combien coute un billet simple ?", options: ["2,50$", "3$", "3,50$", "4$"], correct_answer: 2, explanation: "Le billet coute 'trois dollars cinquante'." },
+      { id: "q4", question: "Combien de stations y a-t-il ?", options: ["48", "58", "68", "78"], correct_answer: 2, explanation: "Il y a 'soixante-huit stations'." },
+    ],
+  },
+  {
+    id: "l7",
+    title: "Parler de ses loisirs",
+    level: "A2",
+    audio_url: "",
+    duration: 95,
+    topic: "Loisirs",
+    created_at: new Date().toISOString(),
+    transcript: "Dans mon temps libre, j'aime beaucoup faire du sport. Je joue au hockey deux fois par semaine avec mes amis. L'hiver, je fais aussi du ski dans les Laurentides. En ete, je prefere nager et faire du velo. Le week-end, j'aime aller au cinema ou lire des romans. La lecture est vraiment ma passion. Je lis au moins un livre par mois.",
+    questions: [
+      { id: "q1", question: "Combien de fois par semaine joue-t-il au hockey ?", options: ["Une fois", "Deux fois", "Trois fois", "Quatre fois"], correct_answer: 1, explanation: "Il dit 'deux fois par semaine'." },
+      { id: "q2", question: "Ou fait-il du ski ?", options: ["En Gaspesie", "Dans les Laurentides", "A Quebec", "En Ontario"], correct_answer: 1, explanation: "Il dit 'dans les Laurentides'." },
+      { id: "q3", question: "Quelle est sa passion ?", options: ["Le cinema", "Le sport", "La lecture", "La musique"], correct_answer: 2, explanation: "Il dit 'La lecture est vraiment ma passion'." },
+      { id: "q4", question: "Combien de livres lit-il par mois ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 0, explanation: "Il dit 'au moins un livre par mois'." },
+    ],
+  },
+  {
+    id: "l8",
+    title: "Le marche du travail au Quebec",
+    level: "B1",
+    audio_url: "",
+    duration: 150,
+    topic: "Travail",
+    created_at: new Date().toISOString(),
+    transcript: "Le marche du travail au Quebec connait actuellement une importante penurie de main-d'oeuvre dans plusieurs secteurs. Les domaines de la sante, de l'education, de la technologie et de la construction sont particulierement touches. Cette situation pousse les entreprises a recruter activement a l'etranger. Le gouvernement quebecois a mis en place des programmes speciaux pour faciliter l'immigration de travailleurs qualifies. Les immigrants qui obtiennent un emploi qualifie peuvent beneficier d'un traitement accelere pour leur demande de residence permanente. Le salaire minimum au Quebec est de quatorze dollars et vingt-cinq cents de l'heure.",
+    questions: [
+      { id: "q1", question: "Quel probleme connait le marche du travail ?", options: ["Trop de chomage", "Penurie de main-d'oeuvre", "Salaires trop bas", "Manque de formation"], correct_answer: 1, explanation: "Le texte parle d'une 'importante penurie de main-d'oeuvre'." },
+      { id: "q2", question: "Quel secteur est touche par cette penurie ?", options: ["Le tourisme", "L'agriculture", "La sante", "Le commerce"], correct_answer: 2, explanation: "La sante est mentionnee parmi les secteurs touches." },
+      { id: "q3", question: "Que fait le gouvernement face a ce probleme ?", options: ["Augmenter les salaires", "Reduire les impots", "Faciliter l'immigration", "Former plus de jeunes"], correct_answer: 2, explanation: "Il a 'mis en place des programmes pour faciliter l'immigration'." },
+      { id: "q4", question: "Quel est le salaire minimum ?", options: ["13,25$", "14,25$", "15,25$", "16,25$"], correct_answer: 1, explanation: "Le salaire minimum est de 'quatorze dollars et vingt-cinq cents'." },
+    ],
+  },
+  {
+    id: "l9",
+    title: "L'education au Quebec",
+    level: "B1",
+    audio_url: "",
+    duration: 160,
+    topic: "Education",
+    created_at: new Date().toISOString(),
+    transcript: "Le systeme d'education quebecois est different du reste du Canada. Apres l'ecole primaire et secondaire, les etudiants quebecois frequentent le CEGEP, ce qui signifie College d'Enseignement General et Professionnel. Le CEGEP offre deux types de programmes : les programmes preuniversitaires de deux ans et les programmes techniques de trois ans. Apres le CEGEP, les etudiants peuvent s'inscrire a l'universite. Les frais de scolarite universitaires au Quebec sont parmi les moins eleves au Canada, ce qui rend l'education accessible a tous. Le gouvernement offre egalement des prets et bourses aux etudiants dans le besoin.",
+    questions: [
+      { id: "q1", question: "Qu'est-ce que le CEGEP ?", options: ["Une ecole primaire", "Un college post-secondaire", "Une universite", "Une ecole de metiers"], correct_answer: 1, explanation: "CEGEP signifie 'College d'Enseignement General et Professionnel'." },
+      { id: "q2", question: "Combien dure un programme preuniversitaire au CEGEP ?", options: ["Un an", "Deux ans", "Trois ans", "Quatre ans"], correct_answer: 1, explanation: "Les programmes preuniversitaires durent 'deux ans'." },
+      { id: "q3", question: "Comment sont les frais universitaires au Quebec ?", options: ["Tres eleves", "Les plus eleves au Canada", "Parmi les moins eleves", "Gratuits"], correct_answer: 2, explanation: "Ils sont 'parmi les moins eleves au Canada'." },
+      { id: "q4", question: "Que propose le gouvernement aux etudiants ?", options: ["Des emplois", "Des logements", "Des prets et bourses", "Des voyages"], correct_answer: 2, explanation: "Le gouvernement offre 'des prets et bourses aux etudiants dans le besoin'." },
+    ],
+  },
+  {
+    id: "l10",
+    title: "La gastronomie quebecoise",
+    level: "B1",
+    audio_url: "",
+    duration: 140,
+    topic: "Culture et gastronomie",
+    created_at: new Date().toISOString(),
+    transcript: "La cuisine quebecoise est un melange savoureux de traditions francaises et d'influences nord-americaines. Le plat le plus connu est la poutine, composee de frites, de fromage en grains et de sauce brune. La tourtiere est un pate a la viande traditionnellement prepare a Noel. Le sirop d'erable est un produit emblematique du Quebec. Le Quebec produit environ soixante-dix pour cent de la production mondiale de sirop d'erable. En mars et avril, les gens visitent les cabanes a sucre pour gouter au sirop frais directement des arbres. La cuisine quebecoise evolue constamment, avec de nombreux chefs qui creent des plats innovants bases sur les produits locaux.",
+    questions: [
+      { id: "q1", question: "De quoi est composee la poutine ?", options: ["Riz, poulet et sauce", "Frites, fromage et sauce brune", "Pates, viande et legumes", "Pain, fromage et jambon"], correct_answer: 1, explanation: "La poutine est 'composee de frites, de fromage en grains et de sauce brune'." },
+      { id: "q2", question: "Quand prepare-t-on traditionnellement la tourtiere ?", options: ["A Paques", "En ete", "A Noel", "A Halloween"], correct_answer: 2, explanation: "Elle est 'traditionnellement preparee a Noel'." },
+      { id: "q3", question: "Quel pourcentage de sirop d'erable le Quebec produit-il ?", options: ["40%", "50%", "60%", "70%"], correct_answer: 3, explanation: "Le Quebec produit 'environ soixante-dix pour cent'." },
+      { id: "q4", question: "Quand visite-t-on les cabanes a sucre ?", options: ["En janvier", "En mars et avril", "En juin", "En octobre"], correct_answer: 1, explanation: "C'est 'en mars et avril'." },
+    ],
+  },
+  {
+    id: "l11",
+    title: "Le logement a Montreal",
+    level: "B1",
+    audio_url: "",
+    duration: 155,
+    topic: "Logement",
+    created_at: new Date().toISOString(),
+    transcript: "Trouver un logement abordable a Montreal est devenu un veritable defi ces dernieres annees. Le prix des loyers a augmente de maniere significative, notamment depuis la pandemie. Dans certains quartiers centraux comme le Plateau ou Outremont, un appartement de deux chambres peut couter plus de deux mille dollars par mois. Les experts attribuent cette hausse a plusieurs facteurs : la forte demande, le manque de nouvelles constructions et l'attrait croissant de Montreal pour les travailleurs a distance. Le gouvernement provincial a adopte des mesures pour proteger les locataires, notamment en limitant les augmentations de loyer. Cependant, beaucoup estiment que ces mesures sont insuffisantes face a la crise du logement.",
+    questions: [
+      { id: "q1", question: "Quel est le principal defi a Montreal ?", options: ["La securite", "Le logement abordable", "Le transport", "L'emploi"], correct_answer: 1, explanation: "Le texte parle de 'trouver un logement abordable'." },
+      { id: "q2", question: "Combien peut couter un appartement de 2 chambres dans les quartiers centraux ?", options: ["1000$", "1500$", "2000$", "2500$"], correct_answer: 2, explanation: "Il peut couter 'plus de deux mille dollars par mois'." },
+      { id: "q3", question: "Quelle est une cause de la hausse des loyers ?", options: ["La baisse de population", "Le manque de nouvelles constructions", "La crise economique", "Les nouvelles taxes"], correct_answer: 1, explanation: "Le texte mentionne 'le manque de nouvelles constructions'." },
+      { id: "q4", question: "Que fait le gouvernement pour les locataires ?", options: ["Rien", "Construit de nouveaux logements", "Limite les augmentations de loyer", "Donne des subventions"], correct_answer: 2, explanation: "Il limite 'les augmentations de loyer'." },
+    ],
+  },
+  {
+    id: "l12",
+    title: "L'environnement et les changements climatiques",
+    level: "B2",
+    audio_url: "",
+    duration: 180,
+    topic: "Environnement",
+    created_at: new Date().toISOString(),
+    transcript: "Le Quebec s'est engage dans une transition energetique ambitieuse pour lutter contre les changements climatiques. La province beneficie deja d'une production d'electricite quasi entierement renouvelable grace a ses nombreux barrages hydroelectriques. Hydro-Quebec fournit de l'electricite a des tarifs parmi les plus bas en Amerique du Nord. Le gouvernement a fixe des objectifs ambitieux de reduction des emissions de gaz a effet de serre, visant une reduction de trente-sept virgule cinq pour cent par rapport aux niveaux de 1990 d'ici 2030. Des incitatifs financiers encouragent les citoyens a adopter des vehicules electriques et a ameliorer l'efficacite energetique de leurs maisons. La foret quebecoise, qui couvre pres de la moitie du territoire provincial, joue un role crucial dans la capture du carbone.",
+    questions: [
+      { id: "q1", question: "D'ou vient principalement l'electricite au Quebec ?", options: ["Du nucleaire", "Du solaire", "De l'hydroelectricite", "Du gaz naturel"], correct_answer: 2, explanation: "Grace a 'ses nombreux barrages hydroelectriques'." },
+      { id: "q2", question: "Quel est l'objectif de reduction des emissions d'ici 2030 ?", options: ["25%", "30%", "37,5%", "50%"], correct_answer: 2, explanation: "L'objectif est 'trente-sept virgule cinq pour cent'." },
+      { id: "q3", question: "Quelle proportion du territoire la foret couvre-t-elle ?", options: ["Un tiers", "Pres de la moitie", "Deux tiers", "Les trois quarts"], correct_answer: 1, explanation: "La foret couvre 'pres de la moitie du territoire provincial'." },
+      { id: "q4", question: "Comment le gouvernement encourage-t-il les voitures electriques ?", options: ["En interdisant les voitures a essence", "Par des incitatifs financiers", "En construisant des routes reservees", "Par des taxes"], correct_answer: 1, explanation: "Il utilise 'des incitatifs financiers'." },
+    ],
+  },
+  {
+    id: "l13",
+    title: "La culture et les arts au Quebec",
+    level: "B2",
+    audio_url: "",
+    duration: 170,
+    topic: "Culture",
+    created_at: new Date().toISOString(),
+    transcript: "Le Quebec possede une scene culturelle et artistique tres dynamique qui rayonne bien au-dela de ses frontieres. La litterature quebecoise a produit des auteurs de renommee internationale comme Michel Tremblay et Gabrielle Roy. Le cinema quebecois connait egalement un succes croissant, avec des films comme Incendies de Denis Villeneuve qui ont ete reconnus aux Oscars. La musique populaire quebecoise, avec des artistes comme Celine Dion, Arcade Fire et Coeur de Pirate, a su conquis le public mondial. Les festivals comme le Festival International de Jazz et les FrancoFolies de Montreal attirent des millions de visiteurs chaque ete. Le gouvernement quebecois investit massivement dans la culture pour preserver et promouvoir l'identite francophone unique du Quebec.",
+    questions: [
+      { id: "q1", question: "Quel auteur quebecois est mentionne ?", options: ["Victor Hugo", "Michel Tremblay", "Emile Zola", "Albert Camus"], correct_answer: 1, explanation: "Michel Tremblay est mentionne comme auteur de renommee internationale." },
+      { id: "q2", question: "Quel film quebecois a ete reconnu aux Oscars ?", options: ["Les Invasions barbares", "Incendies", "C.R.A.Z.Y.", "Mommy"], correct_answer: 1, explanation: "Le film 'Incendies de Denis Villeneuve' est mentionne." },
+      { id: "q3", question: "Lequel de ces artistes est quebecois ?", options: ["Lady Gaga", "Adele", "Celine Dion", "Beyonce"], correct_answer: 2, explanation: "Celine Dion est mentionnee comme artiste quebecoise." },
+      { id: "q4", question: "Pourquoi le gouvernement investit-il dans la culture ?", options: ["Pour le tourisme", "Pour l'economie", "Pour preserver l'identite francophone", "Pour l'education"], correct_answer: 2, explanation: "Pour 'preserver et promouvoir l'identite francophone unique du Quebec'." },
+    ],
+  },
+  {
+    id: "l14",
+    title: "Le systeme politique du Quebec",
+    level: "B2",
+    audio_url: "",
+    duration: 190,
+    topic: "Politique et societe",
+    created_at: new Date().toISOString(),
+    transcript: "Le Quebec est une province canadienne qui possede son propre parlement et son gouvernement provincial. L'Assemblee nationale du Quebec, situee a Quebec City, est composee de cent vingt-cinq deputes elus par la population. Le premier ministre du Quebec dirige le gouvernement provincial et est responsable de nombreux domaines comme l'education, la sante, la culture et l'immigration. Le Quebec a une relation particuliere avec le gouvernement federal canadien. La question de la souverainete du Quebec a ete au coeur de la politique quebecoise pendant des decennies. Deux referendums ont eu lieu, en 1980 et en 1995, ou les Quebecois ont vote pour rester dans le Canada. La langue francaise est protegee par la Loi 101, qui fait du francais la langue officielle du Quebec dans les domaines du travail, des affaires et de l'education.",
+    questions: [
+      { id: "q1", question: "Combien de deputes siègent a l'Assemblee nationale ?", options: ["100", "115", "125", "150"], correct_answer: 2, explanation: "Il y a 'cent vingt-cinq deputes'." },
+      { id: "q2", question: "Ou est situee l'Assemblee nationale ?", options: ["A Montreal", "A Quebec City", "A Ottawa", "A Sherbrooke"], correct_answer: 1, explanation: "Elle est 'situee a Quebec City'." },
+      { id: "q3", question: "Combien de referendums sur la souverainete y a-t-il eu ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il y en a eu deux, 'en 1980 et en 1995'." },
+      { id: "q4", question: "Que protege la Loi 101 ?", options: ["Les droits des immigrants", "La langue francaise", "L'environnement", "L'economie"], correct_answer: 1, explanation: "La Loi 101 fait du francais 'la langue officielle du Quebec'." },
+    ],
+  },
+  {
+    id: "l15",
+    title: "Chercher un emploi au Quebec",
+    level: "B1",
+    audio_url: "",
+    duration: 145,
+    topic: "Travail et emploi",
+    created_at: new Date().toISOString(),
+    transcript: "Trouver un emploi au Quebec necessite une bonne preparation. Il est important d'adapter son curriculum vitae au format quebecois, qui est different du format europeen. Au Quebec, on n'inclut generalement pas de photo ni d'informations personnelles comme l'age ou l'etat civil. La lettre de motivation doit etre concise et mettre en valeur vos competences specifiques. Les reseaux professionnels comme LinkedIn sont tres utilises pour le recrutement. Les immigrants peuvent aussi beneficier de l'aide d'organismes specialises comme Emploi-Quebec qui offre des services gratuits d'orientation et de formation. La maitrise du francais oral et ecrit est souvent indispensable pour acceder aux emplois qualifies.",
+    questions: [
+      { id: "q1", question: "Qu'est-ce qu'on n'inclut pas dans un CV quebecois ?", options: ["Les competences", "L'experience", "La photo", "La formation"], correct_answer: 2, explanation: "On n'inclut 'generalement pas de photo'." },
+      { id: "q2", question: "Quel reseau professionnel est tres utilise ?", options: ["Facebook", "Twitter", "LinkedIn", "Instagram"], correct_answer: 2, explanation: "LinkedIn est 'tres utilise pour le recrutement'." },
+      { id: "q3", question: "Quel organisme aide les immigrants a trouver un emploi ?", options: ["Immigration Quebec", "Emploi-Quebec", "MIDI", "CNESST"], correct_answer: 1, explanation: "Emploi-Quebec 'offre des services gratuits d'orientation'." },
+      { id: "q4", question: "Qu'est-ce qui est indispensable pour les emplois qualifies ?", options: ["L'anglais", "Le francais oral et ecrit", "Un diplome universitaire", "L'experience internationale"], correct_answer: 1, explanation: "La maitrise du francais est 'souvent indispensable'." },
+    ],
+  },
+  {
+    id: "l16",
+    title: "Les saisons au Quebec",
+    level: "A2",
+    audio_url: "",
+    duration: 105,
+    topic: "Climat et nature",
+    created_at: new Date().toISOString(),
+    transcript: "Le Quebec a quatre saisons tres distinctes. L'hiver est long et froid, avec des temperatures qui peuvent descendre jusqu'a moins trente degres. La neige couvre le sol de novembre a mars. Le printemps arrive en avril et mai avec le degel et les premieres fleurs. L'ete est chaud et humide, avec des temperatures autour de trente degres. C'est la saison des festivals en plein air. L'automne est magnifique avec ses feuilles colorees en rouge, orange et jaune. Beaucoup de touristes viennent au Quebec pour voir le fameux feuilletage d'automne.",
+    questions: [
+      { id: "q1", question: "Jusqu'a quelle temperature peut-il faire en hiver ?", options: ["-10 degres", "-20 degres", "-30 degres", "-40 degres"], correct_answer: 2, explanation: "Les temperatures 'peuvent descendre jusqu'a moins trente degres'." },
+      { id: "q2", question: "Quand arrive le printemps ?", options: ["Fevrier-mars", "Mars-avril", "Avril-mai", "Mai-juin"], correct_answer: 2, explanation: "Le printemps arrive 'en avril et mai'." },
+      { id: "q3", question: "Quelle est la temperature en ete ?", options: ["20 degres", "25 degres", "30 degres", "35 degres"], correct_answer: 2, explanation: "Les temperatures sont 'autour de trente degres'." },
+      { id: "q4", question: "Pourquoi les touristes visitent-ils le Quebec en automne ?", options: ["Pour le ski", "Pour les festivals", "Pour les feuilles colorees", "Pour la gastronomie"], correct_answer: 2, explanation: "Ils viennent 'pour voir le fameux feuilletage d'automne'." },
+    ],
+  },
+  {
+    id: "l17",
+    title: "La sante mentale et le bien-etre",
+    level: "B1",
+    audio_url: "",
+    duration: 165,
+    topic: "Sante et bien-etre",
+    created_at: new Date().toISOString(),
+    transcript: "La sante mentale est de plus en plus reconnue comme un element essentiel du bien-etre global. Au Quebec, environ un Quebecois sur cinq souffre d'un probleme de sante mentale au cours de sa vie. Les problemes les plus courants sont la depression et l'anxiete. Depuis la pandemie, la demande de services en sante mentale a augmente considerablement. Le gouvernement quebecois a investi des centaines de millions de dollars pour ameliorer l'acces aux soins psychologiques. Des applications mobiles et des services en ligne permettent maintenant d'acceder a une aide psychologique rapidement. La reduction du stigma associe aux problemes de sante mentale est egalement une priorite pour sensibiliser la population.",
+    questions: [
+      { id: "q1", question: "Combien de Quebecois souffrent d'un probleme de sante mentale ?", options: ["1 sur 10", "1 sur 5", "1 sur 3", "1 sur 4"], correct_answer: 1, explanation: "Environ 'un Quebecois sur cinq'." },
+      { id: "q2", question: "Quels sont les problemes les plus courants ?", options: ["Stress et fatigue", "Depression et anxiete", "Insomnie et phobies", "Addiction et violence"], correct_answer: 1, explanation: "Les plus courants sont 'la depression et l'anxiete'." },
+      { id: "q3", question: "Qu'est-ce qui a augmente depuis la pandemie ?", options: ["Le nombre de medecins", "La demande de services en sante mentale", "Les ressources financieres", "Les hopitaux"], correct_answer: 1, explanation: "La 'demande de services en sante mentale a augmente considerablement'." },
+      { id: "q4", question: "Quelle est une des priorites du gouvernement ?", options: ["Construire des hopitaux", "Reduire le stigma", "Former des medecins", "Reduire les impots"], correct_answer: 1, explanation: "La 'reduction du stigma' est une priorite." },
+    ],
+  },
+  {
+    id: "l18",
+    title: "Le commerce et l'economie du Quebec",
+    level: "B2",
+    audio_url: "",
+    duration: 185,
+    topic: "Economie",
+    created_at: new Date().toISOString(),
+    transcript: "L'economie du Quebec est la deuxieme plus grande des provinces canadiennes, apres l'Ontario. Elle est diversifiee avec des secteurs forts dans l'aeronautique, les technologies de l'information, les sciences de la vie et l'industrie agroalimentaire. Montreal est le hub technologique du Canada francophone, avec de nombreuses startups et entreprises multinationales. Le jeu video est un secteur particulierement dynamique, avec des studios comme Ubisoft et EA qui emploient des milliers de personnes. Les exportations quebecoises incluent l'aluminium, les produits forestiers, les avions et les medicaments. Le Quebec entretient des relations commerciales importantes avec les Etats-Unis, qui representent environ soixante-dix pour cent de ses exportations.",
+    questions: [
+      { id: "q1", question: "Quelle est la position economique du Quebec parmi les provinces ?", options: ["Premiere", "Deuxieme", "Troisieme", "Quatrieme"], correct_answer: 1, explanation: "C'est 'la deuxieme plus grande des provinces canadiennes'." },
+      { id: "q2", question: "Quel studio de jeux video est mentionne ?", options: ["Nintendo", "Sony", "Ubisoft", "Microsoft"], correct_answer: 2, explanation: "Ubisoft est mentionne comme studio a Montreal." },
+      { id: "q3", question: "Quel produit n'est pas exporte par le Quebec ?", options: ["L'aluminium", "Les avions", "Le petrole", "Les medicaments"], correct_answer: 2, explanation: "Le petrole n'est pas mentionne parmi les exportations." },
+      { id: "q4", question: "Quel pourcentage des exportations va aux Etats-Unis ?", options: ["50%", "60%", "70%", "80%"], correct_answer: 2, explanation: "Les Etats-Unis representent 'environ soixante-dix pour cent'." },
+    ],
+  },
+  {
+    id: "l19",
+    title: "Les droits et responsabilites au Quebec",
+    level: "B2",
+    audio_url: "",
+    duration: 175,
+    topic: "Citoyennete et droits",
+    created_at: new Date().toISOString(),
+    transcript: "Au Quebec, comme dans le reste du Canada, les droits et libertes fondamentaux sont proteges par la Charte canadienne des droits et libertes ainsi que par la Charte des droits et libertes de la personne du Quebec. Ces chartes garantissent le droit a l'egalite, a la liberte d'expression, a la liberte de religion et a la protection contre la discrimination. Les citoyens et residents permanents ont le droit de vote lors des elections provinciales et federales. Les residents permanents peuvent egalement demander la citoyennete canadienne apres trois ans de residence au Canada. Les nouveaux citoyens ont les memes droits que les Canadiens de naissance, sauf certaines restrictions comme la possibilite de se presenter a certaines fonctions publiques supremes.",
+    questions: [
+      { id: "q1", question: "Combien de chartes protegent les droits au Quebec ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "La charte canadienne et la charte quebecoise, soit deux chartes." },
+      { id: "q2", question: "Apres combien d'annees peut-on demander la citoyennete ?", options: ["Un an", "Deux ans", "Trois ans", "Cinq ans"], correct_answer: 2, explanation: "Apres 'trois ans de residence au Canada'." },
+      { id: "q3", question: "Qui a le droit de voter aux elections ?", options: ["Tous les residents", "Citoyens et residents permanents", "Citoyens seulement", "Tout le monde"], correct_answer: 1, explanation: "Les 'citoyens et residents permanents ont le droit de vote'." },
+      { id: "q4", question: "Les nouveaux citoyens ont-ils les memes droits que les Canadiens de naissance ?", options: ["Non, aucun droit", "Oui, exactement les memes", "Oui, sauf quelques restrictions", "Non, ils ont moins de droits"], correct_answer: 2, explanation: "Ils ont 'les memes droits, sauf certaines restrictions'." },
+    ],
+  },
+  {
+    id: "l20",
+    title: "Le bilinguisme et la langue au Quebec",
+    level: "C1",
+    audio_url: "",
+    duration: 200,
+    topic: "Langue et identite",
+    created_at: new Date().toISOString(),
+    transcript: "La question linguistique est au coeur de l'identite quebecoise depuis des siecles. Le francais, langue de la majorite des Quebecois, est protege et promu par des lois strictes, notamment la Charte de la langue francaise, communement appelee la Loi 101, adoptee en 1977. Cette loi a transforme radicalement le visage linguistique du Quebec en rendant le francais obligatoire dans les milieux de travail, les ecoles publiques et l'affichage commercial. Cependant, la vitalite du francais au Quebec reste fragile face a la domination mondiale de l'anglais et aux flux migratoires. Les debats sur la place de l'anglais, notamment dans l'enseignement superieur et le monde des affaires, restent vifs. Certains arguent qu'une trop grande protection peut nuire a la competitivite economique du Quebec, tandis que d'autres estiment que sans ces mesures, le francais serait menace d'assimilation progressive.",
+    questions: [
+      { id: "q1", question: "En quelle annee la Loi 101 a-t-elle ete adoptee ?", options: ["1960", "1970", "1977", "1985"], correct_answer: 2, explanation: "La Loi 101 a ete 'adoptee en 1977'." },
+      { id: "q2", question: "Ou le francais est-il obligatoire selon la Loi 101 ?", options: ["Uniquement au travail", "Uniquement a l'ecole", "Au travail, a l'ecole et dans l'affichage", "Partout sans exception"], correct_answer: 2, explanation: "Il est obligatoire 'dans les milieux de travail, les ecoles publiques et l'affichage commercial'." },
+      { id: "q3", question: "Pourquoi le francais reste-t-il fragile ?", options: ["A cause des immigrants", "A cause de la domination mondiale de l'anglais", "A cause du gouvernement", "A cause de l'economie"], correct_answer: 1, explanation: "Face 'a la domination mondiale de l'anglais'." },
+      { id: "q4", question: "Quel est le debat principal autour de la protection du francais ?", options: ["Elle coute trop cher", "Elle peut nuire a la competitivite economique", "Elle est inefficace", "Elle discrimine les anglophones"], correct_answer: 1, explanation: "Certains disent qu'elle 'peut nuire a la competitivite economique du Quebec'." },
     ],
   },
 ];
 
 export const sampleSpeakingPrompts: SpeakingPrompt[] = [
-  {
-    id: "sp1",
-    level: "A2",
-    prompt:
-      "Parlez de votre routine quotidienne. Que faites-vous le matin, l'après-midi et le soir ? (Parlez pendant environ 2 minutes)",
-    duration: 120,
-    topic: "Vie quotidienne",
-    example_response:
-      "Le matin, je me lève à 7 heures. Je prends une douche et je prends mon petit-déjeuner. Je mange des céréales et je bois du café. Ensuite, je vais au travail en métro. L'après-midi, je travaille jusqu'à 17 heures. Le soir, je rentre à la maison, je prépare le dîner et je regarde la télévision. Je me couche vers 22 heures.",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "sp2",
-    level: "B1",
-    prompt:
-      "Décrivez un événement culturel ou une fête importante dans votre pays d'origine. Expliquez ce que c'est, comment les gens le célèbrent et ce que cela représente pour vous. (Parlez pendant environ 3 minutes)",
-    duration: 180,
-    topic: "Culture et traditions",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "sp3",
-    level: "B2",
-    prompt:
-      "Selon vous, quels sont les avantages et les inconvénients du télétravail ? Donnez votre opinion personnelle avec des exemples concrets. (Parlez pendant environ 4 minutes)",
-    duration: 240,
-    topic: "Travail et société",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "sp4",
-    level: "A1",
-    prompt:
-      "Présentez-vous : donnez votre nom, votre âge, votre pays d'origine et votre profession. (Parlez pendant environ 1 minute)",
-    duration: 60,
-    topic: "Présentation personnelle",
-    example_response:
-      "Bonjour, je m'appelle Carlos. J'ai 28 ans. Je suis du Mexique, de Mexico. Je suis informaticien. J'aime le sport et la musique.",
-    created_at: new Date().toISOString(),
-  },
+  { id: "s1", level: "A1", prompt: "Presentez-vous : donnez votre nom, votre age, votre pays d'origine et votre profession.", duration: 60, topic: "Presentation personnelle", created_at: new Date().toISOString() },
+  { id: "s2", level: "A2", prompt: "Parlez de votre routine quotidienne. Que faites-vous le matin, l'apres-midi et le soir ?", duration: 120, topic: "Vie quotidienne", created_at: new Date().toISOString() },
+  { id: "s3", level: "B1", prompt: "Decrivez un evenement culturel important dans votre pays d'origine et expliquez pourquoi il est special pour vous.", duration: 180, topic: "Culture et traditions", created_at: new Date().toISOString() },
+  { id: "s4", level: "B2", prompt: "Quels sont les avantages et les inconvenients du teletravail ? Donnez votre opinion personnelle avec des exemples.", duration: 240, topic: "Travail et societe", created_at: new Date().toISOString() },
+  { id: "s5", level: "C1", prompt: "Analysez les defis de l'integration des immigrants dans la societe quebecoise et proposez des solutions concretes.", duration: 300, topic: "Societe et immigration", created_at: new Date().toISOString() },
 ];
 
 export const sampleWritingPrompts: WritingPrompt[] = [
-  {
-    id: "w1",
-    level: "A2",
-    prompt:
-      "Vous voulez inviter un ami québécois à votre anniversaire. Écrivez-lui un message pour l'inviter. Donnez les informations importantes : la date, l'heure, le lieu et ce que vous ferez ensemble.",
-    word_count_min: 60,
-    word_count_max: 120,
-    topic: "Communication informelle",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "w2",
-    level: "B1",
-    prompt:
-      "Vous avez récemment assisté à un événement culturel à Montréal (concert, exposition, festival, etc.). Écrivez un texte pour décrire cet événement, expliquer ce que vous avez aimé ou pas aimé, et recommander (ou non) cet événement à d'autres personnes.",
-    word_count_min: 150,
-    word_count_max: 250,
-    topic: "Vie culturelle",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "w3",
-    level: "B2",
-    prompt:
-      "La ville de Montréal envisage d'interdire les voitures dans le centre-ville pendant les fins de semaine pour améliorer la qualité de l'air et favoriser les piétons. Rédigez une lettre à la mairie pour exprimer votre opinion sur cette mesure. Présentez des arguments pour ou contre cette proposition.",
-    word_count_min: 250,
-    word_count_max: 400,
-    topic: "Vie urbaine et environnement",
-    created_at: new Date().toISOString(),
-  },
+  { id: "w1", level: "A2", prompt: "Vous voulez inviter un ami quebecois a votre anniversaire. Ecrivez-lui un message pour l'inviter avec la date, l'heure et le lieu.", word_count_min: 60, word_count_max: 120, topic: "Communication informelle", created_at: new Date().toISOString() },
+  { id: "w2", level: "B1", prompt: "Vous avez recemment assiste a un evenement culturel a Montreal. Decrivez cet evenement et recommandez-le ou non a d'autres personnes.", word_count_min: 150, word_count_max: 250, topic: "Vie culturelle", created_at: new Date().toISOString() },
+  { id: "w3", level: "B2", prompt: "La ville de Montreal envisage d'interdire les voitures dans le centre-ville les fins de semaine. Redigez une lettre a la mairie pour exprimer votre opinion.", word_count_min: 250, word_count_max: 400, topic: "Vie urbaine et environnement", created_at: new Date().toISOString() },
+  { id: "w4", level: "C1", prompt: "Selon vous, la mondialisation represente-t-elle une menace ou une opportunite pour les cultures locales comme la culture quebecoise ? Argumentez avec des exemples precis.", word_count_min: 400, word_count_max: 600, topic: "Mondialisation et culture", created_at: new Date().toISOString() },
 ];
