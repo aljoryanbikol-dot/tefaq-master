@@ -1,262 +1,327 @@
 "use client";
-import Link from "next/link";
-import { useEffect } from "react";
-import { useAuthStore } from "@/lib/store";
-import { useRouter } from "next/navigation";
-import { BookOpen, Headphones, Mic, PenLine, CheckCircle, ArrowRight, Star, Zap, Crown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { AppLayout } from "@/components/shared/AppLayout";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { LevelBadge } from "@/components/ui/Badge";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { sampleListeningExercises } from "@/lib/sample-data";
+import { scoreToGrade, calculateXP } from "@/lib/utils";
+import { Headphones, Play, Pause, RotateCcw, ArrowRight, CheckCircle, XCircle, Trophy, FileText, ChevronDown, Volume2 } from "lucide-react";
+import toast from "react-hot-toast";
+import type { ListeningExercise } from "@/types";
 
-export default function LandingPage() {
-  const { user } = useAuthStore();
-  const router = useRouter();
+type Stage = "list" | "exercise" | "results";
+
+export default function ListeningPage() {
+  const [stage, setStage] = useState<Stage>("list");
+  const [selected, setSelected] = useState<ListeningExercise | null>(null);
+  const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const [playing, setPlaying] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [playCount, setPlayCount] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
 
   useEffect(() => {
-    if (user) router.push("/dashboard");
-  }, [user, router]);
+    return () => {
+      window.speechSynthesis?.cancel();
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+  }, []);
 
-  return (
-    <div className="min-h-screen bg-white dark:bg-surface-950 overflow-x-hidden">
-      {/* Nav */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-100 dark:border-surface-800">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shadow-glow">
-              <span className="text-white font-bold">T</span>
-            </div>
-            <span className="font-display font-bold text-xl text-surface-900 dark:text-white">TEFAQ Master</span>
+  const startExercise = (ex: ListeningExercise) => {
+    window.speechSynthesis?.cancel();
+    setSelected(ex);
+    setAnswers(new Array(ex.questions.length).fill(null));
+    setPlaying(false);
+    setShowTranscript(false);
+    setPlayCount(0);
+    setProgress(0);
+    setStage("exercise");
+  };
+
+  const getFrenchVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    return (
+      voices.find(v => v.lang === "fr-CA") ||
+      voices.find(v => v.lang === "fr-FR") ||
+      voices.find(v => v.lang.startsWith("fr")) ||
+      voices[0]
+    );
+  };
+
+  const togglePlay = () => {
+    if (!selected?.transcript) return;
+
+    if (playing) {
+      window.speechSynthesis.pause();
+      setPlaying(false);
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    } else {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setPlaying(true);
+        startProgressTimer();
+      } else {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(selected.transcript);
+        utterance.lang = "fr-CA";
+        utterance.rate = 0.85;
+        utterance.pitch = 1;
+        const voice = getFrenchVoice();
+        if (voice) utterance.voice = voice;
+
+        utterance.onstart = () => {
+          setPlaying(true);
+          setPlayCount(p => p + 1);
+          startTimeRef.current = Date.now();
+          durationRef.current = selected.duration * 1000;
+          startProgressTimer();
+        };
+        utterance.onend = () => {
+          setPlaying(false);
+          setProgress(100);
+          if (progressInterval.current) clearInterval(progressInterval.current);
+        };
+        utterance.onerror = () => {
+          setPlaying(false);
+          toast.error("Erreur audio. Essayez un autre navigateur.");
+        };
+
+        utteranceRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+  };
+
+  const startProgressTimer = () => {
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    progressInterval.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const pct = Math.min((elapsed / (durationRef.current || 60000)) * 100, 99);
+      setProgress(pct);
+    }, 500);
+  };
+
+  const handleReset = () => {
+    window.speechSynthesis.cancel();
+    setPlaying(false);
+    setProgress(0);
+    if (progressInterval.current) clearInterval(progressInterval.current);
+  };
+
+  const handleAnswer = (qIdx: number, aIdx: number) => {
+    setAnswers(prev => { const a = [...prev]; a[qIdx] = aIdx; return a; });
+  };
+
+  const handleSubmit = () => {
+    const unanswered = answers.filter(a => a === null).length;
+    if (unanswered > 0) {
+      toast(`Il reste ${unanswered} question(s) sans reponse.`, { icon: "⚠️" });
+      return;
+    }
+    window.speechSynthesis.cancel();
+    setStage("results");
+  };
+
+  const score = selected
+    ? Math.round((answers.filter((a, i) => a === selected.questions[i]?.correct_answer).length / selected.questions.length) * 100)
+    : 0;
+
+  if (stage === "list") {
+    return (
+      <AppLayout title="Comprehension orale">
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display font-bold text-2xl text-surface-900 dark:text-white mb-1">Comprehension orale</h2>
+            <p className="text-surface-500 dark:text-surface-400 text-sm">20 exercices audio en francais quebecois — niveaux A1 a C1</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-semibold text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white transition-colors px-3 py-1.5">
-              Connexion
-            </Link>
-            <Link href="/register" className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
-              Commencer <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="pt-32 pb-24 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-accent-50 dark:from-primary-950/20 dark:via-surface-950 dark:to-accent-950/20 pointer-events-none" />
-        <div className="absolute top-20 right-10 w-96 h-96 bg-primary-200/30 dark:bg-primary-900/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-72 h-72 bg-accent-200/30 dark:bg-accent-900/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded-full text-sm font-semibold mb-8">
-            <Zap size={14} className="text-accent-500" />
-            Propulsé par l&apos;intelligence artificielle GPT-4
-          </div>
-
-          <h1 className="font-display font-bold text-5xl lg:text-7xl text-surface-900 dark:text-white mb-6 leading-tight">
-            Réussissez le{" "}
-            <span className="bg-gradient-to-r from-primary-600 to-accent-500 bg-clip-text text-transparent">TEFAQ</span>{" "}
-            avec confiance
-          </h1>
-
-          <p className="text-xl text-surface-600 dark:text-surface-300 mb-10 max-w-2xl mx-auto leading-relaxed">
-            La plateforme de préparation au TEFAQ qui évalue votre niveau en temps réel, identifie vos lacunes et crée un parcours personnalisé.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/register" className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary-600 hover:bg-primary-700 text-white text-lg font-bold rounded-2xl transition-all shadow-glow hover:shadow-glow-lg">
-              Essai gratuit <ArrowRight size={20} />
-            </Link>
-            <Link href="/login" className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 text-lg font-bold rounded-2xl hover:border-primary-400 hover:text-primary-600 transition-all">
-              Se connecter
-            </Link>
-          </div>
-          <p className="mt-6 text-sm text-surface-400 dark:text-surface-500">
-            ✓ Aucune carte requise &nbsp;·&nbsp; ✓ 5 exercices gratuits/jour &nbsp;·&nbsp; ✓ Annulez à tout moment
-          </p>
-        </div>
-
-        {/* Dashboard preview */}
-        <div className="max-w-5xl mx-auto mt-20 relative">
-          <div className="rounded-2xl border border-surface-200 dark:border-surface-700 shadow-2xl overflow-hidden bg-white dark:bg-surface-900">
-            <div className="bg-surface-100 dark:bg-surface-800 px-4 py-3 flex items-center gap-2 border-b border-surface-200 dark:border-surface-700">
-              <div className="w-3 h-3 rounded-full bg-danger-400" />
-              <div className="w-3 h-3 rounded-full bg-warning-400" />
-              <div className="w-3 h-3 rounded-full bg-success-400" />
-              <div className="flex-1 mx-4 bg-white dark:bg-surface-700 rounded-lg px-3 py-1 text-xs text-surface-400">tefaqmaster.ca/dashboard</div>
-            </div>
-            <div className="p-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Compréhension écrite", score: 78, color: "from-blue-500 to-cyan-400", icon: "📖" },
-                { label: "Compréhension orale", score: 65, color: "from-purple-500 to-pink-400", icon: "🎧" },
-                { label: "Expression orale", score: 82, color: "from-orange-500 to-red-400", icon: "🎤" },
-                { label: "Expression écrite", score: 71, color: "from-green-500 to-teal-400", icon: "✍️" },
-              ].map((m) => (
-                <div key={m.label} className="rounded-xl p-4 bg-surface-50 dark:bg-surface-800 border border-surface-100 dark:border-surface-700">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${m.color} flex items-center justify-center text-lg mb-3`}>{m.icon}</div>
-                  <div className="text-xs text-surface-500 dark:text-surface-400 mb-1">{m.label}</div>
-                  <div className="text-2xl font-bold text-surface-900 dark:text-white">{m.score}<span className="text-sm text-surface-400">/100</span></div>
-                  <div className="mt-2 h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
-                    <div className={`h-full bg-gradient-to-r ${m.color} rounded-full`} style={{ width: `${m.score}%` }} />
+          <div className="grid gap-4">
+            {sampleListeningExercises.map(ex => (
+              <Card key={ex.id} hover onClick={() => startExercise(ex)} className="group">
+                <CardBody className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <LevelBadge level={ex.level} />
+                        <span className="text-xs text-surface-400 font-medium px-2 py-0.5 bg-surface-100 dark:bg-surface-800 rounded-full">{ex.topic}</span>
+                        <span className="text-xs text-surface-400">{ex.duration}s</span>
+                      </div>
+                      <h3 className="font-semibold text-surface-900 dark:text-white mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{ex.title}</h3>
+                      <p className="text-sm text-surface-500">{ex.questions.length} questions</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500 transition-all">
+                      <Headphones size={20} className="text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (stage === "results" && selected) {
+    const correct = answers.filter((a, i) => a === selected.questions[i]?.correct_answer).length;
+    const xp = calculateXP(score, "listening");
+    return (
+      <AppLayout title="Resultats">
+        <div className="max-w-2xl mx-auto space-y-6 animate-slide-up">
+          <Card className="overflow-hidden">
+            <div className={`p-8 text-center ${score >= 70 ? "bg-gradient-to-br from-success-500 to-success-600" : score >= 50 ? "bg-gradient-to-br from-warning-500 to-warning-600" : "bg-gradient-to-br from-danger-500 to-danger-600"}`}>
+              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+                <Trophy size={36} className="text-white" />
+              </div>
+              <div className="text-white font-display font-black text-6xl mb-2">{score}%</div>
+              <div className="text-white/80 text-lg font-semibold">{scoreToGrade(score)}</div>
+              <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 rounded-full text-white text-sm font-semibold">+{xp} XP gagnes</div>
             </div>
-            <div className="px-6 pb-6">
-              <div className="rounded-xl bg-gradient-to-r from-primary-600 to-accent-500 p-4 text-white flex items-center justify-between">
+            <CardBody className="p-6">
+              <div className="flex justify-around mb-6 text-center">
+                <div><div className="font-display font-bold text-2xl text-success-600">{correct}</div><div className="text-xs text-surface-500">Bonnes reponses</div></div>
+                <div><div className="font-display font-bold text-2xl text-danger-600">{selected.questions.length - correct}</div><div className="text-xs text-surface-500">Erreurs</div></div>
+              </div>
+              <div className="space-y-4">
+                {selected.questions.map((q, i) => {
+                  const isCorrect = answers[i] === q.correct_answer;
+                  return (
+                    <div key={q.id} className={`p-4 rounded-xl border ${isCorrect ? "border-success-200 bg-success-50 dark:border-success-800 dark:bg-success-950/20" : "border-danger-200 bg-danger-50 dark:border-danger-800 dark:bg-danger-950/20"}`}>
+                      <div className="flex items-start gap-3">
+                        {isCorrect ? <CheckCircle size={18} className="text-success-500 flex-shrink-0 mt-0.5" /> : <XCircle size={18} className="text-danger-500 flex-shrink-0 mt-0.5" />}
+                        <div>
+                          <p className="font-medium text-surface-900 dark:text-white text-sm mb-1">{q.question}</p>
+                          {!isCorrect && <p className="text-xs text-success-600 dark:text-success-400 mb-1">Bonne reponse : {q.options[q.correct_answer]}</p>}
+                          <p className="text-xs text-surface-500 italic">{q.explanation}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button variant="outline" className="flex-1" icon={<RotateCcw size={16} />} onClick={() => startExercise(selected)}>Recommencer</Button>
+                <Button className="flex-1" icon={<ArrowRight size={16} />} iconPosition="right" onClick={() => setStage("list")}>Autre exercice</Button>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (stage === "exercise" && selected) {
+    const answered = answers.filter(a => a !== null).length;
+    return (
+      <AppLayout title={selected.title}>
+        <div className="max-w-3xl mx-auto space-y-6 animate-slide-up">
+          <div className="flex items-center justify-between">
+            <LevelBadge level={selected.level} size="md" />
+            <span className="text-sm text-surface-500">{answered}/{selected.questions.length} reponses</span>
+          </div>
+          <ProgressBar value={answered} max={selected.questions.length} color="primary" size="sm" />
+
+          {/* Audio player with TTS */}
+          <Card className="bg-gradient-to-br from-purple-600 to-primary-600 text-white overflow-hidden">
+            <CardBody className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Headphones size={28} />
+                </div>
                 <div>
-                  <div className="text-sm font-medium opacity-80">Niveau CECR estimé</div>
-                  <div className="text-3xl font-display font-bold mt-1">B1</div>
-                  <div className="text-sm opacity-70 mt-0.5">Intermédiaire</div>
-                </div>
-                <div className="text-6xl opacity-20 font-display font-black">B1</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Modules */}
-      <section className="py-24 px-4 bg-surface-50 dark:bg-surface-900">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="font-display font-bold text-4xl text-surface-900 dark:text-white mb-4">Les 4 compétences du TEFAQ</h2>
-            <p className="text-surface-500 dark:text-surface-400 text-lg max-w-2xl mx-auto">Chaque module simule fidèlement les conditions de l&apos;examen réel avec un feedback IA détaillé.</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { icon: <BookOpen size={28} />, color: "from-blue-500 to-cyan-400", bg: "bg-blue-50 dark:bg-blue-950/30", title: "Compréhension écrite", desc: "Textes authentiques québécois, questions à choix multiples, minuterie et correction automatique. Niveaux A1 à C1.", features: ["Textes TEFAQ authentiques", "Score instantané", "Explications détaillées", "Difficulté adaptative"] },
-              { icon: <Headphones size={28} />, color: "from-purple-500 to-pink-400", bg: "bg-purple-50 dark:bg-purple-950/30", title: "Compréhension orale", desc: "Enregistrements audio en français québécois avec contrôles de lecture et questions de compréhension.", features: ["Audio français québécois", "Contrôles de lecture", "Transcription disponible", "5 niveaux CECR"] },
-              { icon: <Mic size={28} />, color: "from-orange-500 to-red-400", bg: "bg-orange-50 dark:bg-orange-950/30", title: "Expression orale", desc: "Enregistrez votre réponse, obtenez une transcription automatique et une évaluation IA sur 5 critères.", features: ["Reconnaissance vocale", "Score prononciation", "Analyse de fluidité", "Recommandations IA"] },
-              { icon: <PenLine size={28} />, color: "from-green-500 to-teal-400", bg: "bg-green-50 dark:bg-green-950/30", title: "Expression écrite", desc: "Rédigez vos textes et recevez des corrections grammaticales, suggestions de vocabulaire et estimation de niveau.", features: ["Correction grammaticale IA", "Enrichissement vocabulaire", "Estimation CECR", "Conseils de structure"] },
-            ].map((mod) => (
-              <div key={mod.title} className={`rounded-2xl p-6 border border-surface-200 dark:border-surface-700 ${mod.bg} group hover:shadow-lg transition-all duration-300`}>
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${mod.color} flex items-center justify-center text-white mb-5 shadow-md group-hover:scale-110 transition-transform`}>{mod.icon}</div>
-                <h3 className="font-display font-bold text-xl text-surface-900 dark:text-white mb-2">{mod.title}</h3>
-                <p className="text-surface-600 dark:text-surface-400 text-sm mb-4 leading-relaxed">{mod.desc}</p>
-                <ul className="space-y-2">
-                  {mod.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-surface-700 dark:text-surface-300">
-                      <CheckCircle size={15} className="text-success-500 flex-shrink-0" />{f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="py-24 px-4">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-          {[
-            { value: "10 000+", label: "Apprenants actifs" },
-            { value: "95%", label: "Taux de réussite TEFAQ" },
-            { value: "A1–C1", label: "Niveaux couverts" },
-            { value: "4.9/5", label: "Satisfaction utilisateurs" },
-          ].map((s) => (
-            <div key={s.label}>
-              <div className="font-display font-black text-4xl text-primary-600 dark:text-primary-400 mb-2">{s.value}</div>
-              <div className="text-surface-500 dark:text-surface-400 text-sm font-medium">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section className="py-24 px-4 bg-surface-50 dark:bg-surface-900">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="font-display font-bold text-4xl text-surface-900 dark:text-white mb-4">Tarifs simples et transparents</h2>
-            <p className="text-surface-500 dark:text-surface-400 text-lg">Commencez gratuitement, évoluez quand vous êtes prêt.</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="rounded-2xl border-2 border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-8">
-              <div className="text-surface-500 dark:text-surface-400 font-semibold mb-2">Gratuit</div>
-              <div className="font-display font-black text-5xl text-surface-900 dark:text-white mb-1">0 $</div>
-              <div className="text-surface-400 text-sm mb-8">Pour toujours</div>
-              <ul className="space-y-3 mb-8">
-                {["5 exercices par jour", "Tous les modules", "Score automatique", "Suivi de progression basique"].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
-                    <CheckCircle size={16} className="text-success-500" /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/register" className="block text-center px-6 py-3 border-2 border-primary-600 text-primary-600 dark:text-primary-400 font-bold rounded-xl hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors">
-                Commencer gratuitement
-              </Link>
-            </div>
-            <div className="rounded-2xl border-2 border-primary-500 bg-gradient-to-br from-primary-600 to-accent-600 p-8 text-white relative overflow-hidden">
-              <div className="absolute top-4 right-4">
-                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold">POPULAIRE</span>
-              </div>
-              <div className="flex items-center gap-2 font-semibold mb-2 opacity-90"><Crown size={16} /> Premium</div>
-              <div className="font-display font-black text-5xl mb-1">29 $</div>
-              <div className="opacity-70 text-sm mb-8">par mois · Annulez à tout moment</div>
-              <ul className="space-y-3 mb-8">
-                {["Exercices illimités", "Analyse orale complète", "Examens blancs TEFAQ", "Rapports de progression", "Recommandations IA personnalisées", "Accès prioritaire aux nouveaux contenus"].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle size={16} className="text-white/80" /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/register?plan=premium" className="block text-center px-6 py-3 bg-white text-primary-600 font-bold rounded-xl hover:bg-white/90 transition-colors shadow-lg">
-                Démarrer l&apos;essai Premium
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-24 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="font-display font-bold text-4xl text-surface-900 dark:text-white text-center mb-16">Ce que disent nos apprenants</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: "Amira B.", country: "🇲🇦 Maroc", level: "B2", text: "Grâce à TEFAQ Master, j'ai obtenu mon niveau B2 au premier essai. Les corrections IA de l'expression écrite sont incroyablement précises." },
-              { name: "Carlos M.", country: "🇲🇽 Mexique", level: "C1", text: "La simulation d'examen oral est révolutionnaire. Le feedback sur ma prononciation québécoise m'a vraiment aidé à progresser rapidement." },
-              { name: "Yuki T.", country: "🇯🇵 Japon", level: "B1", text: "Interface intuitive, exercices variés et feedback détaillé. C'est la meilleure application de préparation au TEFAQ que j'ai trouvée." },
-            ].map((t) => (
-              <div key={t.name} className="rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-6">
-                <div className="flex gap-1 mb-4">{[...Array(5)].map((_, i) => <Star key={i} size={14} className="text-accent-400 fill-accent-400" />)}</div>
-                <p className="text-surface-600 dark:text-surface-300 text-sm leading-relaxed mb-5">&ldquo;{t.text}&rdquo;</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-accent-400 flex items-center justify-center text-white font-bold text-sm">{t.name.charAt(0)}</div>
-                  <div>
-                    <div className="font-semibold text-surface-900 dark:text-white text-sm">{t.name}</div>
-                    <div className="text-xs text-surface-400">{t.country} · Niveau {t.level} obtenu</div>
+                  <h3 className="font-bold text-lg">{selected.title}</h3>
+                  <p className="text-white/70 text-sm">{selected.duration}s · {selected.topic}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Volume2 size={12} className="text-white/60" />
+                    <span className="text-xs text-white/60">Audio francais via synthese vocale</span>
                   </div>
                 </div>
               </div>
+
+              {/* Waveform */}
+              <div className="flex items-center gap-0.5 h-10 mb-4">
+                {[...Array(40)].map((_, i) => (
+                  <div key={i} className={`flex-1 rounded-full transition-all ${playing ? "animate-pulse bg-white/60" : "bg-white/30"}`}
+                    style={{ height: `${20 + Math.sin(i * 0.5) * 15 + (i % 3) * 8}%` }} />
+                ))}
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center gap-4">
+                <button onClick={togglePlay} className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg flex-shrink-0">
+                  {playing ? <Pause size={20} className="text-purple-600" /> : <Play size={20} className="text-purple-600 ml-1" />}
+                </button>
+                <div className="flex-1">
+                  <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-white rounded-full transition-all" style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-white/60 mt-1">
+                    <span>0:00</span>
+                    <span>0:{selected.duration}</span>
+                  </div>
+                </div>
+                <button onClick={handleReset} className="text-white/60 hover:text-white transition-colors">
+                  <RotateCcw size={16} />
+                </button>
+              </div>
+
+              <p className="text-white/60 text-xs mt-3">
+                {playCount === 0 ? "Appuyez sur Lecture pour ecouter en francais" : `Ecoute ${playCount} fois`}
+              </p>
+            </CardBody>
+          </Card>
+
+          {/* Transcript toggle */}
+          <button onClick={() => setShowTranscript(!showTranscript)}
+            className="w-full flex items-center gap-2 p-3 rounded-xl border border-dashed border-surface-300 dark:border-surface-600 text-surface-500 hover:border-primary-400 hover:text-primary-600 transition-all text-sm font-medium">
+            <FileText size={16} />
+            {showTranscript ? "Masquer la transcription" : "Afficher la transcription"}
+            <ChevronDown size={16} className={`ml-auto transition-transform ${showTranscript ? "rotate-180" : ""}`} />
+          </button>
+
+          {showTranscript && (
+            <Card className="bg-surface-50 dark:bg-surface-800/50 border-dashed border-surface-300 dark:border-surface-600">
+              <CardBody>
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wide mb-2">Transcription</p>
+                <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed italic">{selected.transcript}</p>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Questions */}
+          <div className="space-y-5">
+            {selected.questions.map((q, qIdx) => (
+              <Card key={q.id}>
+                <CardBody>
+                  <p className="font-semibold text-surface-900 dark:text-white mb-4"><span className="text-primary-500 mr-2">{qIdx + 1}.</span>{q.question}</p>
+                  <div className="space-y-2.5">
+                    {q.options.map((opt, aIdx) => (
+                      <button key={aIdx} onClick={() => handleAnswer(qIdx, aIdx)}
+                        className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium ${answers[qIdx] === aIdx ? "border-primary-500 bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300" : "border-surface-200 dark:border-surface-700 hover:border-primary-300 dark:hover:border-primary-700 text-surface-700 dark:text-surface-300"}`}>
+                        <span className="font-bold text-surface-400 mr-3">{["A", "B", "C", "D"][aIdx]}.</span>{opt}
+                      </button>
+                    ))}
+                  </div>
+                </CardBody>
+              </Card>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="py-24 px-4 bg-gradient-to-br from-primary-600 to-accent-600">
-        <div className="max-w-3xl mx-auto text-center text-white">
-          <h2 className="font-display font-bold text-4xl lg:text-5xl mb-6">Commencez votre préparation aujourd&apos;hui</h2>
-          <p className="text-xl opacity-80 mb-10">Rejoignez des milliers de candidats qui se préparent au TEFAQ avec l&apos;IA.</p>
-          <Link href="/register" className="inline-flex items-center gap-3 px-10 py-5 bg-white text-primary-600 text-lg font-bold rounded-2xl hover:bg-white/90 transition-all shadow-xl">
-            Créer mon compte gratuit <ArrowRight size={22} />
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 px-4 border-t border-surface-100 dark:border-surface-800 bg-white dark:bg-surface-900">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center">
-              <span className="text-white font-bold text-xs">T</span>
-            </div>
-            <span className="font-display font-bold text-surface-900 dark:text-white">TEFAQ Master</span>
-          </div>
-          <p className="text-sm text-surface-400">© 2024 TEFAQ Master. Tous droits réservés.</p>
-          <div className="flex gap-6 text-sm text-surface-400">
-            <Link href="#" className="hover:text-surface-700 dark:hover:text-surface-200">Confidentialité</Link>
-            <Link href="#" className="hover:text-surface-700 dark:hover:text-surface-200">Conditions</Link>
-            <Link href="#" className="hover:text-surface-700 dark:hover:text-surface-200">Contact</Link>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => { window.speechSynthesis?.cancel(); setStage("list"); }}>Annuler</Button>
+            <Button className="flex-1" size="lg" onClick={handleSubmit} icon={<ArrowRight size={18} />} iconPosition="right">
+              Soumettre mes reponses
+            </Button>
           </div>
         </div>
-      </footer>
-    </div>
-  );
+      </AppLayout>
+    );
+  }
+
+  return null;
 }
