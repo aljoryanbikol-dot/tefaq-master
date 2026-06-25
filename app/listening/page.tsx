@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/shared/AppLayout";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -31,31 +31,36 @@ export default function ListeningPage() {
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState<Speed>(1);
 
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Refs — never cause re-renders, safe to read inside browser callbacks
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedAtRef = useRef<number>(0);
+  const isMounted = useRef<boolean>(true);
+  // Tracks whether the current utterance was intentionally cancelled (stop/replay/unmount)
+  const cancelledRef = useRef<boolean>(false);
 
-  // Cleanup on unmount or exercise change
-  const stopTts = useCallback(() => {
-    if (typeof window === "undefined") return;
-    window.speechSynthesis?.cancel();
+  // Pure cancel: clears interval + calls speechSynthesis.cancel, NO state updates.
+  // State updates are handled by the caller after cancel() returns.
+  const cancelSpeech = () => {
+    cancelledRef.current = true;
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+    }
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
       progressInterval.current = null;
     }
-    setTtsState("idle");
+  };
+
+  // Cleanup on unmount only
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      cancelSpeech();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    return () => { stopTts(); };
-  }, [stopTts]);
-
-  // Reset TTS when exercise changes
-  useEffect(() => {
-    stopTts();
-    setProgress(0);
-  }, [selected, stopTts]);
 
   const getFrenchVoice = (): SpeechSynthesisVoice | null => {
     if (typeof window === "undefined") return null;
@@ -72,6 +77,7 @@ export default function ListeningPage() {
   const startProgressTimer = (durationMs: number) => {
     if (progressInterval.current) clearInterval(progressInterval.current);
     progressInterval.current = setInterval(() => {
+      if (!isMounted.current) return;
       const elapsed = Date.now() - startTimeRef.current + pausedAtRef.current;
       const pct = Math.min((elapsed / durationMs) * 100, 99);
       setProgress(pct);
@@ -80,46 +86,72 @@ export default function ListeningPage() {
 
   const handlePlay = () => {
     if (!selected?.transcript) return;
-    stopTts();
+
+    // Cancel any ongoing speech without touching React state yet
+    cancelSpeech();
+
+    // Reset progress state synchronously before creating utterance
     setProgress(0);
+    setTtsState("idle");
     pausedAtRef.current = 0;
 
-    const utterance = new SpeechSynthesisUtterance(selected.transcript);
-    utterance.lang = "fr-CA";
-    utterance.rate = speed;
-    utterance.pitch = 1;
+    const transcript = selected.transcript;
+    const durationSec = selected.duration;
+    const currentSpeed = speed;
 
-    // Voices may not be loaded yet — retry once
-    const voice = getFrenchVoice();
-    if (voice) utterance.voice = voice;
+    // Defer utterance creation to next tick so React finishes
+    // reconciling the state updates above before the browser
+    // speech engine fires onstart (which also updates state).
+    setTimeout(() => {
+      if (!isMounted.current) return;
 
-    const durationMs = (selected.duration / speed) * 1000;
+      const utterance = new SpeechSynthesisUtterance(transcript);
+      utterance.lang = "fr-CA";
+      utterance.rate = currentSpeed;
+      utterance.pitch = 1;
 
-    utterance.onstart = () => {
-      setTtsState("playing");
-      setPlayCount((p) => p + 1);
-      startTimeRef.current = Date.now();
-      startProgressTimer(durationMs);
-    };
+      const voice = getFrenchVoice();
+      if (voice) utterance.voice = voice;
 
-    utterance.onend = () => {
-      setTtsState("idle");
-      setProgress(100);
-      pausedAtRef.current = 0;
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-        progressInterval.current = null;
-      }
-    };
+      const durationMs = (durationSec / currentSpeed) * 1000;
 
-    utterance.onerror = (e) => {
-      if (e.error === "interrupted" || e.error === "canceled") return;
-      setTtsState("idle");
-      toast.error("Erreur audio. Essayez Chrome ou Edge.");
-    };
+      utterance.onstart = () => {
+        if (!isMounted.current) return;
+        cancelledRef.current = false;
+        startTimeRef.current = Date.now();
+        setTtsState("playing");
+        setPlayCount((prev) => prev + 1);
+        startProgressTimer(durationMs);
+      };
 
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+      utterance.onend = () => {
+        if (!isMounted.current) return;
+        // onend fires for both natural end AND cancel(); skip if we cancelled
+        if (cancelledRef.current) return;
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+        }
+        setProgress(100);
+        setTtsState("idle");
+        pausedAtRef.current = 0;
+      };
+
+      utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
+        if (!isMounted.current) return;
+        // "interrupted" and "canceled" are normal — fired when cancel() is called
+        if (e.error === "interrupted" || e.error === "canceled") return;
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+        }
+        setTtsState("idle");
+        toast.error("Erreur audio. Essayez Chrome ou Edge.");
+      };
+
+      cancelledRef.current = false;
+      window.speechSynthesis.speak(utterance);
+    }, 0);
   };
 
   const handlePause = () => {
@@ -145,7 +177,8 @@ export default function ListeningPage() {
   };
 
   const handleStop = () => {
-    stopTts();
+    cancelSpeech();
+    setTtsState("idle");
     setProgress(0);
     pausedAtRef.current = 0;
   };
@@ -155,28 +188,25 @@ export default function ListeningPage() {
   };
 
   const handleSpeedChange = (s: Speed) => {
-    setSpeed(s);
-    // If currently playing, restart at new speed
-    if (ttsState !== "idle") {
-      stopTts();
+    const wasActive = ttsState !== "idle";
+    if (wasActive) {
+      cancelSpeech();
+      setTtsState("idle");
       setProgress(0);
       pausedAtRef.current = 0;
-      // Small delay to let cancel settle
-      setTimeout(() => {
-        setSpeed(s);
-      }, 100);
     }
+    setSpeed(s);
   };
 
   const startExercise = (ex: ListeningExercise) => {
-    stopTts();
-    setSelected(ex);
-    setAnswers(new Array(ex.questions.length).fill(null));
+    cancelSpeech();
     setTtsState("idle");
-    setShowTranscript(false);
-    setPlayCount(0);
     setProgress(0);
     pausedAtRef.current = 0;
+    setSelected(ex);
+    setAnswers(new Array(ex.questions.length).fill(null));
+    setShowTranscript(false);
+    setPlayCount(0);
     setStage("exercise");
   };
 
@@ -190,7 +220,8 @@ export default function ListeningPage() {
       toast(`Il reste ${unanswered} question(s) sans reponse.`, { icon: "⚠️" });
       return;
     }
-    stopTts();
+    cancelSpeech();
+    setTtsState("idle");
     setStage("results");
   };
 
@@ -551,7 +582,7 @@ export default function ListeningPage() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={() => { stopTts(); setStage("list"); }}
+              onClick={() => { cancelSpeech(); setTtsState("idle"); setStage("list"); }}
             >
               Annuler
             </Button>
