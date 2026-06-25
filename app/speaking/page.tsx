@@ -90,28 +90,42 @@ export default function SpeakingPage() {
         <div className="space-y-6">
           <div>
             <h2 className="font-display font-bold text-2xl text-surface-900 dark:text-white mb-1">Expression orale</h2>
-            <p className="text-surface-500 dark:text-surface-400 text-sm">Enregistrez votre reponse et recevez une evaluation IA detaillee</p>
+            <p className="text-surface-500 dark:text-surface-400 text-sm">{sampleSpeakingPrompts.length} exercices — niveaux A1 a C1 — Enregistrez et recevez une evaluation detaillee</p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            {sampleSpeakingPrompts.map((p) => (
-              <Card key={p.id} hover onClick={() => { setSelected(p); setStage("prep"); }} className="group">
-                <CardBody className="p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <LevelBadge level={p.level} />
-                    <span className="text-xs text-surface-400 px-2 py-0.5 bg-surface-100 dark:bg-surface-800 rounded-full">{p.topic}</span>
-                    <div className="ml-auto flex items-center gap-1 text-xs text-surface-400">
-                      <Clock size={12} />{Math.floor(p.duration / 60)} min
-                    </div>
-                  </div>
-                  <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed line-clamp-3">{p.prompt}</p>
-                  <div className="flex items-center gap-1 mt-3 text-primary-600 dark:text-primary-400 text-xs font-semibold">
-                    <Mic size={12} />Commencer cet exercice
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
+          {(["A1", "A2", "B1", "B2", "C1"] as const).map((level) => {
+            const prompts = sampleSpeakingPrompts.filter((p) => p.level === level);
+            if (prompts.length === 0) return null;
+            return (
+              <div key={level} className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <LevelBadge level={level} size="md" />
+                  <span className="text-sm font-semibold text-surface-600 dark:text-surface-400">
+                    {prompts.length} exercice{prompts.length > 1 ? "s" : ""}
+                  </span>
+                  <div className="flex-1 h-px bg-surface-200 dark:bg-surface-700" />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {prompts.map((p) => (
+                    <Card key={p.id} hover onClick={() => { setSelected(p); setStage("prep"); }} className="group">
+                      <CardBody className="p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-xs text-surface-400 px-2 py-0.5 bg-surface-100 dark:bg-surface-800 rounded-full">{p.topic}</span>
+                          <div className="ml-auto flex items-center gap-1 text-xs text-surface-400">
+                            <Clock size={12} />{Math.floor(p.duration / 60)} min
+                          </div>
+                        </div>
+                        <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed line-clamp-3">{p.prompt}</p>
+                        <div className="flex items-center gap-1 mt-3 text-primary-600 dark:text-primary-400 text-xs font-semibold">
+                          <Mic size={12} />Commencer cet exercice
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </AppLayout>
     );
