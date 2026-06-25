@@ -1,2376 +1,353 @@
-import type {
-  ReadingExercise,
-  ListeningExercise,
-  SpeakingPrompt,
-  WritingPrompt,
-} from "@/types";
+"use client";
+import { useState, useRef, useCallback } from "react";
+import { AppLayout } from "@/components/shared/AppLayout";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { LevelBadge } from "@/components/ui/Badge";
+import { ScoreCircle } from "@/components/ui/ScoreCircle";
+import { sampleSpeakingPrompts } from "@/lib/sample-data";
+import { Mic, Square, ArrowRight, Clock, Loader2, CheckCircle, AlertCircle, TrendingUp } from "lucide-react";
+import toast from "react-hot-toast";
+import type { SpeakingPrompt, SpeakingEvaluation } from "@/types";
 
-export const sampleReadingExercises: ReadingExercise[] = [
-  {
-    id: "r1",
-    title: "La vie quotidienne a Montreal",
-    level: "A2",
-    topic: "Vie urbaine",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `Montreal est une grande ville du Quebec, au Canada. C'est une ville bilingue ou les gens parlent francais et anglais. Environ 4 millions de personnes habitent dans la region de Montreal.
+type Stage = "list" | "prep" | "recording" | "processing" | "results";
 
-La ville est connue pour ses festivals, notamment le Festival International de Jazz de Montreal qui attire des musiciens du monde entier chaque ete. Les Montreалais aiment aussi le Festival Juste pour Rire, un festival de comedie tres populaire.
+export default function SpeakingPage() {
+  const [stage, setStage] = useState<Stage>("list");
+  const [selected, setSelected] = useState<SpeakingPrompt | null>(null);
+  const [evaluation, setEvaluation] = useState<SpeakingEvaluation | null>(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<BlobPart[]>([]);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-Dans les quartiers de Montreal, on trouve beaucoup de restaurants, de cafes et de boutiques. Le Vieux-Montreal est un quartier historique avec des batiments anciens et des rues pavees. C'est un endroit tres touristique.
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks.current = [];
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mr.ondataavailable = (e) => chunks.current.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunks.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mr.start();
+      mediaRecorder.current = mr;
+      setRecordingTime(0);
+      setStage("recording");
+      timer.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } catch {
+      toast.error("Acces au microphone refuse. Veuillez autoriser l'acces dans votre navigateur.");
+    }
+  }, []);
 
-Les transports en commun a Montreal sont bien developpes. Le metro, les autobus et les pistes cyclables permettent aux habitants de se deplacer facilement dans la ville. Beaucoup de Montreалais utilisent le velo, surtout en ete.`,
-    questions: [
-      { id: "q1", question: "Combien de personnes habitent dans la region de Montreal ?", options: ["Environ 1 million", "Environ 2 millions", "Environ 4 millions", "Environ 6 millions"], correct_answer: 2, explanation: "Le texte dit 'Environ 4 millions de personnes habitent dans la region de Montreal.'" },
-      { id: "q2", question: "Qu'est-ce que le Festival Juste pour Rire ?", options: ["Un festival de musique", "Un festival de comedie", "Un festival de cinema", "Un festival de danse"], correct_answer: 1, explanation: "Le texte mentionne que c'est 'un festival de comedie tres populaire'." },
-      { id: "q3", question: "Comment se caracterise le Vieux-Montreal ?", options: ["C'est un quartier moderne", "C'est un quartier residentiel", "C'est un quartier historique", "C'est un quartier industriel"], correct_answer: 2, explanation: "Le texte decrit le Vieux-Montreal comme 'un quartier historique avec des batiments anciens'." },
-      { id: "q4", question: "Quel moyen de transport est populaire en ete a Montreal ?", options: ["La voiture", "Le train", "Le velo", "Le taxi"], correct_answer: 2, explanation: "Le texte precise 'Beaucoup de Montreалais utilisent le velo, surtout en ete.'" },
-    ],
-  },
-  {
-    id: "r2",
-    title: "L'immigration au Quebec",
-    level: "B1",
-    topic: "Societe",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `Le Quebec accueille chaque annee des milliers d'immigrants venus des quatre coins du monde. Ces nouveaux arrivants choisissent le Quebec pour diverses raisons : la qualite de vie, les opportunites professionnelles et la culture francophone unique.
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder.current) {
+      mediaRecorder.current.stop();
+    }
+    if (timer.current) {
+      clearInterval(timer.current);
+    }
+    setStage("processing");
+    setTimeout(() => evaluateRecording(), 500);
+  }, []);
 
-Pour s'integrer a la societe quebecoise, les immigrants doivent souvent apprendre le francais, la langue officielle de la province. De nombreux services gratuits sont offerts pour aider les nouveaux arrivants, comme des cours de francais et des programmes d'integration.
+  const evaluateRecording = async () => {
+    if (!selected) return;
+    try {
+      // In production this calls /api/speaking/evaluate
+      // For demo, we return a mock evaluation
+      await new Promise((r) => setTimeout(r, 3000));
+      const mockEval: SpeakingEvaluation = {
+        overall_score: 72,
+        cefr_level: "B1",
+        pronunciation_score: 78,
+        fluency_score: 68,
+        grammar_score: 75,
+        vocabulary_score: 70,
+        coherence_score: 69,
+        transcript: `Bonjour, je vais vous parler de ${selected.topic.toLowerCase()}. C'est un sujet tres interessant pour moi...`,
+        feedback: "Votre expression orale demontre une bonne maitrise des structures de base. Votre prononciation est generalement claire et comprehensible. Vous faites preuve d'une certaine fluidite, bien que des hesitations soient encore presentes. Il est recommande de travailler sur la richesse du vocabulaire et la complexite grammaticale pour atteindre un niveau superieur.",
+        strengths: ["Prononciation claire et comprehensible", "Bonne structure de base du discours", "Vocabulaire adapte au sujet"],
+        weaknesses: ["Hesitations frequentes reduisant la fluidite", "Structures grammaticales repetitives", "Manque de connecteurs logiques"],
+        suggestions: ["Ecoutez des podcasts en francais quebecois quotidiennement", "Pratiquez les connecteurs comme 'par consequent', 'en outre', 'cependant'", "Enregistrez-vous regulierement pour suivre votre progression"],
+      };
+      setEvaluation(mockEval);
+      setStage("results");
+    } catch {
+      toast.error("Erreur lors de l'evaluation. Veuillez reessayer.");
+      setStage("prep");
+    }
+  };
 
-Le marche du travail quebecois offre de nombreuses possibilites dans des secteurs comme la technologie, la sante et le genie. Cependant, faire reconnaitre ses diplomes etrangers peut parfois etre un defi pour les nouveaux arrivants.
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
-La culture quebecoise est un melange unique de traditions francophones et d'influences nord-americaines. Les immigrants enrichissent cette culture en apportant leurs propres traditions, cuisines et perspectives.`,
-    questions: [
-      { id: "q1", question: "Pourquoi les immigrants choisissent-ils le Quebec ?", options: ["Uniquement pour le travail", "Pour la qualite de vie, les opportunites et la culture", "A cause du climat", "Pour la langue anglaise"], correct_answer: 1, explanation: "Le texte mentionne 'la qualite de vie, les opportunites professionnelles et la culture francophone unique'." },
-      { id: "q2", question: "Qu'est-ce qui peut etre difficile pour les nouveaux arrivants ?", options: ["Trouver un logement", "Apprendre l'anglais", "Faire reconnaitre ses diplomes etrangers", "Obtenir un visa"], correct_answer: 2, explanation: "Le texte dit 'faire reconnaitre ses diplomes etrangers peut parfois etre un defi'." },
-      { id: "q3", question: "Quelle est la langue officielle du Quebec ?", options: ["L'anglais", "Le francais", "Les deux", "L'inuktitut"], correct_answer: 1, explanation: "Le texte precise que le francais est 'la langue officielle de la province'." },
-      { id: "q4", question: "Dans quels secteurs y a-t-il des opportunites au Quebec ?", options: ["Agriculture et peche", "Technologie, sante et genie", "Tourisme uniquement", "Commerce international"], correct_answer: 1, explanation: "Le texte mentionne 'la technologie, la sante et le genie'." },
-    ],
-  },
-  {
-    id: "r3",
-    title: "Le systeme de sante au Quebec",
-    level: "B2",
-    topic: "Sante",
-    time_limit: 1200,
-    created_at: new Date().toISOString(),
-    text: `Le systeme de sante quebecois est un systeme public finance par les impots des citoyens. Tous les residents permanents et les citoyens canadiens ont acces aux soins de sante de base gratuitement, grace a la carte d'assurance maladie, communement appelee la carte soleil.
+  if (stage === "list") {
+    return (
+      <AppLayout title="Expression orale">
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display font-bold text-2xl text-surface-900 dark:text-white mb-1">Expression orale</h2>
+            <p className="text-surface-500 dark:text-surface-400 text-sm">Enregistrez votre reponse et recevez une evaluation IA detaillee</p>
+          </div>
 
-Toutefois, ce systeme fait face a plusieurs defis importants. Les delais d'attente dans les urgences peuvent etre tres longs, parfois plusieurs heures. De plus, de nombreux Quebecois n'ont pas de medecin de famille et doivent se tourner vers des cliniques sans rendez-vous ou des groupes de medecine de famille.
+          <div className="grid sm:grid-cols-2 gap-4">
+            {sampleSpeakingPrompts.map((p) => (
+              <Card key={p.id} hover onClick={() => { setSelected(p); setStage("prep"); }} className="group">
+                <CardBody className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <LevelBadge level={p.level} />
+                    <span className="text-xs text-surface-400 px-2 py-0.5 bg-surface-100 dark:bg-surface-800 rounded-full">{p.topic}</span>
+                    <div className="ml-auto flex items-center gap-1 text-xs text-surface-400">
+                      <Clock size={12} />{Math.floor(p.duration / 60)} min
+                    </div>
+                  </div>
+                  <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed line-clamp-3">{p.prompt}</p>
+                  <div className="flex items-center gap-1 mt-3 text-primary-600 dark:text-primary-400 text-xs font-semibold">
+                    <Mic size={12} />Commencer cet exercice
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
-Pour faire face a ces problemes, le gouvernement quebecois a mis en place plusieurs reformes. La creation des Groupes de Medecine de Famille (GMF) vise a ameliorer l'acces aux soins de premiere ligne. De plus, les infirmieres praticiciennes specialisees jouent un role de plus en plus important dans le systeme.
+  if (stage === "prep" && selected) {
+    return (
+      <AppLayout title="Preparation">
+        <div className="max-w-2xl mx-auto space-y-6 animate-slide-up">
+          <div className="flex items-center gap-3">
+            <LevelBadge level={selected.level} size="md" />
+            <span className="text-sm text-surface-500 dark:text-surface-400">{selected.topic}</span>
+          </div>
 
-Les innovations technologiques transforment egalement le systeme de sante. La teleremedecine permet aux patients de consulter un medecin en ligne, reduisant ainsi les deplacements et les delais d'attente. Les dossiers medicaux electroniques facilitent le partage d'informations entre professionnels de la sante.`,
-    questions: [
-      { id: "q1", question: "Comment s'appelle la carte d'assurance maladie au Quebec ?", options: ["La carte bleue", "La carte soleil", "La carte sante", "La carte medicare"], correct_answer: 1, explanation: "Le texte la nomme 'communement appelee la carte soleil'." },
-      { id: "q2", question: "Quel est un des principaux defis du systeme de sante ?", options: ["Le cout trop eleve", "Les longs delais d'attente", "Le manque de technologie", "L'absence de specialistes"], correct_answer: 1, explanation: "Le texte mentionne 'Les delais d'attente dans les urgences peuvent etre tres longs'." },
-      { id: "q3", question: "Que sont les GMF ?", options: ["Des hopitaux prives", "Des pharmacies", "Des Groupes de Medecine de Famille", "Des cliniques specialisees"], correct_answer: 2, explanation: "GMF signifie 'Groupes de Medecine de Famille'." },
-      { id: "q4", question: "Comment la teleremedecine aide-t-elle les patients ?", options: ["En reduisant les couts", "En eliminant les urgences", "En permettant de consulter en ligne", "En formant plus de medecins"], correct_answer: 2, explanation: "Le texte dit 'la teleremedecine permet aux patients de consulter un medecin en ligne'." },
-    ],
-  },
-  // ─── NEW A1 READING EXERCISES (r4–r13) ───────────────────────────────────
-  {
-    id: "r4",
-    title: "La pharmacie du quartier",
-    level: "A1",
-    topic: "Sante",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `La pharmacie Jean-Coutu est ouverte tous les jours. Elle ferme a vingt et une heures du lundi au vendredi. Le samedi et le dimanche, elle ferme a dix-huit heures. Le pharmacien s'appelle Monsieur Bouchard. Il parle francais et anglais. La pharmacie vend des medicaments, des vitamines, des cosmetiques et des produits pour bebe. Pour les ordonnances, il faut apporter sa carte RAMQ. La pharmacie est situee au 45, rue Principale.`,
-    questions: [
-      { id: "q1", question: "A quelle heure ferme la pharmacie du lundi au vendredi ?", options: ["18h", "19h", "20h", "21h"], correct_answer: 3, explanation: "Le texte dit 'Elle ferme a vingt et une heures du lundi au vendredi'." },
-      { id: "q2", question: "Quelles langues parle le pharmacien ?", options: ["Francais seulement", "Anglais seulement", "Francais et anglais", "Francais et espagnol"], correct_answer: 2, explanation: "Le texte dit 'Il parle francais et anglais'." },
-      { id: "q3", question: "Quel document faut-il apporter pour les ordonnances ?", options: ["Son passeport", "Sa carte RAMQ", "Sa carte bancaire", "Son permis de conduire"], correct_answer: 1, explanation: "Le texte dit 'il faut apporter sa carte RAMQ'." },
-      { id: "q4", question: "A quelle adresse se trouve la pharmacie ?", options: ["45, rue Principale", "54, rue Principale", "45, avenue Principale", "54, avenue Principale"], correct_answer: 0, explanation: "Le texte dit 'situee au 45, rue Principale'." },
-      { id: "q5", question: "A quelle heure ferme la pharmacie le dimanche ?", options: ["16h", "17h", "18h", "19h"], correct_answer: 2, explanation: "Le texte dit 'Le samedi et le dimanche, elle ferme a dix-huit heures'." },
-    ],
-  },
-  {
-    id: "r5",
-    title: "Mon premier appartement",
-    level: "A1",
-    topic: "Logement",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Je cherche un appartement a Montreal. J'ai trouve une annonce sur Internet. L'appartement a deux chambres et un salon. La cuisine est petite mais moderne. Il y a aussi une salle de bain et un balcon. Le loyer est de mille cent dollars par mois. Le chauffage et l'eau chaude sont inclus. L'appartement est au deuxieme etage. Il n'y a pas d'ascenseur. L'immeuble est pres d'une station de metro.`,
-    questions: [
-      { id: "q1", question: "Combien de chambres a l'appartement ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Le texte dit 'L'appartement a deux chambres'." },
-      { id: "q2", question: "Quel est le loyer mensuel ?", options: ["900$", "1000$", "1100$", "1200$"], correct_answer: 2, explanation: "Le texte dit 'Le loyer est de mille cent dollars par mois'." },
-      { id: "q3", question: "Qu'est-ce qui est inclus dans le loyer ?", options: ["L'electricite", "Le chauffage et l'eau chaude", "Le stationnement", "Internet"], correct_answer: 1, explanation: "Le texte dit 'Le chauffage et l'eau chaude sont inclus'." },
-      { id: "q4", question: "A quel etage se trouve l'appartement ?", options: ["Premier", "Deuxieme", "Troisieme", "Quatrieme"], correct_answer: 1, explanation: "Le texte dit 'au deuxieme etage'." },
-      { id: "q5", question: "Ou l'appartement a-t-il ete trouve ?", options: ["Dans un journal", "Sur Internet", "Par un agent", "Par un ami"], correct_answer: 1, explanation: "Le texte dit 'J'ai trouve une annonce sur Internet'." },
-    ],
-  },
-  {
-    id: "r6",
-    title: "Les courses au marche",
-    level: "A1",
-    topic: "Shopping",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Le samedi matin, Lena va au marche Jean-Talon avec sa voisine Clara. Elles aiment acheter des fruits et des legumes frais. Aujourd'hui, Lena achete des pommes, des carottes et des tomates. Elle achete aussi du pain chez le boulanger. Clara achete des fleurs jaunes pour sa maison. Le marche est anime et colore. Il y a beaucoup de monde. Les prix sont raisonnables. Lena depense vingt-deux dollars en tout.`,
-    questions: [
-      { id: "q1", question: "Quand Lena va-t-elle au marche ?", options: ["Vendredi matin", "Samedi matin", "Dimanche matin", "Lundi matin"], correct_answer: 1, explanation: "Le texte dit 'Le samedi matin'." },
-      { id: "q2", question: "Avec qui Lena va-t-elle au marche ?", options: ["Sa soeur", "Son mari", "Sa voisine Clara", "Sa fille"], correct_answer: 2, explanation: "Le texte dit 'avec sa voisine Clara'." },
-      { id: "q3", question: "Qu'est-ce que Clara achete ?", options: ["Des legumes", "Du pain", "Des fleurs jaunes", "Des fruits"], correct_answer: 2, explanation: "Le texte dit 'Clara achete des fleurs jaunes'." },
-      { id: "q4", question: "Combien Lena depense-t-elle ?", options: ["12$", "18$", "22$", "28$"], correct_answer: 2, explanation: "Le texte dit 'Lena depense vingt-deux dollars en tout'." },
-      { id: "q5", question: "Comment sont les prix au marche ?", options: ["Tres chers", "Moyens", "Raisonnables", "Gratuits"], correct_answer: 2, explanation: "Le texte dit 'Les prix sont raisonnables'." },
-    ],
-  },
-  {
-    id: "r7",
-    title: "A la gare routiere",
-    level: "A1",
-    topic: "Transport",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Jean-Pierre va prendre l'autobus pour aller a Quebec City. Il est a la gare d'autocars de Montreal. Le depart est a quatorze heures trente. Le billet coute trente-cinq dollars. Le voyage dure environ trois heures. L'autobus s'arrete une fois a Drummondville pour une pause de quinze minutes. Jean-Pierre a une valise et un sac a dos. Il doit attendre dans la salle d'attente. Il y a un cafe et un distributeur automatique.`,
-    questions: [
-      { id: "q1", question: "Ou va Jean-Pierre ?", options: ["A Toronto", "A Ottawa", "A Quebec City", "A Sherbrooke"], correct_answer: 2, explanation: "Le texte dit 'pour aller a Quebec City'." },
-      { id: "q2", question: "A quelle heure part l'autobus ?", options: ["13h30", "14h00", "14h30", "15h00"], correct_answer: 2, explanation: "Le texte dit 'Le depart est a quatorze heures trente'." },
-      { id: "q3", question: "Combien coute le billet ?", options: ["25$", "30$", "35$", "40$"], correct_answer: 2, explanation: "Le texte dit 'Le billet coute trente-cinq dollars'." },
-      { id: "q4", question: "Combien de temps dure le voyage ?", options: ["Deux heures", "Trois heures", "Quatre heures", "Cinq heures"], correct_answer: 1, explanation: "Le texte dit 'environ trois heures'." },
-      { id: "q5", question: "Combien de temps dure la pause a Drummondville ?", options: ["10 minutes", "15 minutes", "20 minutes", "30 minutes"], correct_answer: 1, explanation: "Le texte dit 'une pause de quinze minutes'." },
-    ],
-  },
-  {
-    id: "r8",
-    title: "Le premier jour de travail",
-    level: "A1",
-    topic: "Travail",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Aujourd'hui est le premier jour de travail d'Amina dans une boulangerie. Elle commence a six heures du matin. Son patron s'appelle Monsieur Girard. Il est tres gentil. Amina apprend a faire du pain et des croissants. Elle porte un tablier blanc et un chapeau. La boulangerie sent bon. Les clients arrivent tot le matin. Amina est contente de son nouveau travail. Elle gagne seize dollars de l'heure.`,
-    questions: [
-      { id: "q1", question: "Ou Amina travaille-t-elle ?", options: ["Dans un restaurant", "Dans une boulangerie", "Dans une pharmacie", "Dans un cafe"], correct_answer: 1, explanation: "Le texte dit 'dans une boulangerie'." },
-      { id: "q2", question: "A quelle heure commence-t-elle ?", options: ["5h", "6h", "7h", "8h"], correct_answer: 1, explanation: "Le texte dit 'Elle commence a six heures du matin'." },
-      { id: "q3", question: "Comment s'appelle son patron ?", options: ["Monsieur Girard", "Monsieur Gagnon", "Monsieur Gauthier", "Monsieur Gilbert"], correct_answer: 0, explanation: "Le texte dit 'Son patron s'appelle Monsieur Girard'." },
-      { id: "q4", question: "Combien gagne-t-elle de l'heure ?", options: ["14$", "15$", "16$", "17$"], correct_answer: 2, explanation: "Le texte dit 'Elle gagne seize dollars de l'heure'." },
-      { id: "q5", question: "Que porte Amina au travail ?", options: ["Un manteau et des gants", "Un tablier blanc et un chapeau", "Un uniforme rouge", "Des vetements normaux"], correct_answer: 1, explanation: "Le texte dit 'Elle porte un tablier blanc et un chapeau'." },
-    ],
-  },
-  {
-    id: "r9",
-    title: "L'inscription a l'ecole de langues",
-    level: "A1",
-    topic: "Education",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Paulo vient de Bresil. Il habite a Montreal depuis deux mois. Il veut apprendre le francais. Il s'inscrit a une ecole de langues pres de chez lui. Les cours coutent cent vingt dollars par mois. Les classes ont lieu le soir, de dix-huit heures a vingt heures. Il y a dix eleves dans sa classe. La professeure s'appelle Madame Ouimet. Elle est tres patiente. Paulo est content de commencer ses cours.`,
-    questions: [
-      { id: "q1", question: "D'ou vient Paulo ?", options: ["Du Mexique", "Du Portugal", "Du Bresil", "D'Argentine"], correct_answer: 2, explanation: "Le texte dit 'Paulo vient de Bresil'." },
-      { id: "q2", question: "Depuis combien de temps est-il a Montreal ?", options: ["Un mois", "Deux mois", "Six mois", "Un an"], correct_answer: 1, explanation: "Le texte dit 'depuis deux mois'." },
-      { id: "q3", question: "Combien coutent les cours par mois ?", options: ["100$", "110$", "120$", "130$"], correct_answer: 2, explanation: "Le texte dit 'cent vingt dollars par mois'." },
-      { id: "q4", question: "A quelle heure commencent les cours ?", options: ["17h", "18h", "19h", "20h"], correct_answer: 1, explanation: "Le texte dit 'de dix-huit heures a vingt heures'." },
-      { id: "q5", question: "Combien d'eleves y a-t-il dans la classe ?", options: ["8", "10", "12", "15"], correct_answer: 1, explanation: "Le texte dit 'Il y a dix eleves dans sa classe'." },
-    ],
-  },
-  {
-    id: "r10",
-    title: "Un rendez-vous chez le dentiste",
-    level: "A1",
-    topic: "Sante",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Mireille a mal aux dents depuis trois jours. Elle telephone au cabinet du dentiste pour prendre un rendez-vous. La secretaire lui donne un rendez-vous jeudi a quinze heures. Le dentiste s'appelle Docteur Lapointe. Le cabinet est dans la rue Saint-Denis. Mireille doit apporter sa carte d'assurance maladie. La consultation coute cent vingt dollars. L'assurance paie une partie du montant. Mireille paie seulement quarante dollars.`,
-    questions: [
-      { id: "q1", question: "Depuis combien de temps Mireille a-t-elle mal aux dents ?", options: ["Un jour", "Deux jours", "Trois jours", "Une semaine"], correct_answer: 2, explanation: "Le texte dit 'depuis trois jours'." },
-      { id: "q2", question: "Quand est le rendez-vous ?", options: ["Mardi a 15h", "Mercredi a 15h", "Jeudi a 15h", "Vendredi a 15h"], correct_answer: 2, explanation: "Le texte dit 'jeudi a quinze heures'." },
-      { id: "q3", question: "Comment s'appelle le dentiste ?", options: ["Docteur Labelle", "Docteur Lapointe", "Docteur Lariviere", "Docteur Lacasse"], correct_answer: 1, explanation: "Le texte dit 'Docteur Lapointe'." },
-      { id: "q4", question: "Combien coute la consultation ?", options: ["80$", "100$", "120$", "150$"], correct_answer: 2, explanation: "Le texte dit 'La consultation coute cent vingt dollars'." },
-      { id: "q5", question: "Combien Mireille paie-t-elle en fin de compte ?", options: ["20$", "40$", "60$", "80$"], correct_answer: 1, explanation: "Le texte dit 'Mireille paie seulement quarante dollars'." },
-    ],
-  },
-  {
-    id: "r11",
-    title: "Les regles de la residence",
-    level: "A1",
-    topic: "Logement",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Voici les regles de la residence Les Pins. Les residents ne peuvent pas avoir d'animaux. La musique forte est interdite apres vingt-deux heures. Les visiteurs doivent partir avant minuit. Les poubelles doivent etre sorties le mardi soir. Le stationnement dans la cour est interdit. Il faut utiliser le parking public a cote. Le loyer est payable le premier de chaque mois. En cas de probleme, appelez le gestionnaire au numero affiche dans le hall.`,
-    questions: [
-      { id: "q1", question: "Peut-on avoir un chien dans cette residence ?", options: ["Oui, les petits animaux", "Oui, tous les animaux", "Non, les animaux sont interdits", "Oui, seulement les chats"], correct_answer: 2, explanation: "Le texte dit 'Les residents ne peuvent pas avoir d'animaux'." },
-      { id: "q2", question: "Jusqu'a quelle heure peut-on faire de la musique forte ?", options: ["21h", "22h", "23h", "Minuit"], correct_answer: 1, explanation: "Le texte dit 'interdite apres vingt-deux heures'." },
-      { id: "q3", question: "Quand faut-il sortir les poubelles ?", options: ["Lundi soir", "Mardi soir", "Mercredi soir", "Vendredi soir"], correct_answer: 1, explanation: "Le texte dit 'Les poubelles doivent etre sorties le mardi soir'." },
-      { id: "q4", question: "Quand le loyer doit-il etre paye ?", options: ["Le 1er du mois", "Le 5 du mois", "Le 15 du mois", "Le dernier du mois"], correct_answer: 0, explanation: "Le texte dit 'le premier de chaque mois'." },
-      { id: "q5", question: "Ou est affiche le numero du gestionnaire ?", options: ["Dans chaque appartement", "Dans le parking", "Dans le hall", "Sur Internet"], correct_answer: 2, explanation: "Le texte dit 'au numero affiche dans le hall'." },
-    ],
-  },
-  {
-    id: "r12",
-    title: "Le menu du restaurant scolaire",
-    level: "A1",
-    topic: "Alimentation",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Voici le menu de la cafeteria de l'ecole cette semaine. Lundi : soupe aux legumes et sandwich au jambon. Mardi : pates bolognaise et salade. Mercredi : poulet grille avec des frites et des haricots verts. Jeudi : pizza aux legumes et fruits. Vendredi : poisson avec du riz et des carottes. Le repas du midi coute cinq dollars cinquante. Les eleves peuvent aussi apporter leur propre lunch. Les allergies doivent etre declarees a l'administration.`,
-    questions: [
-      { id: "q1", question: "Quel est le menu du lundi ?", options: ["Pates et salade", "Soupe et sandwich au jambon", "Pizza aux legumes", "Poulet et frites"], correct_answer: 1, explanation: "Le texte dit 'Lundi : soupe aux legumes et sandwich au jambon'." },
-      { id: "q2", question: "Quel plat est servi le mercredi ?", options: ["Poisson et riz", "Pizza", "Poulet grille avec des frites", "Pates bolognaise"], correct_answer: 2, explanation: "Le texte dit 'Mercredi : poulet grille avec des frites et des haricots verts'." },
-      { id: "q3", question: "Combien coute le repas du midi ?", options: ["4,50$", "5$", "5,50$", "6$"], correct_answer: 2, explanation: "Le texte dit 'cinq dollars cinquante'." },
-      { id: "q4", question: "Que peuvent faire les eleves a la place de la cafeteria ?", options: ["Sortir manger dehors", "Sauter le repas", "Apporter leur propre lunch", "Commander de la nourriture"], correct_answer: 2, explanation: "Le texte dit 'Les eleves peuvent aussi apporter leur propre lunch'." },
-      { id: "q5", question: "Qu'est-ce qu'il faut declarer a l'administration ?", options: ["Ses absences", "Ses allergies", "Ses choix de repas", "Son regime alimentaire"], correct_answer: 1, explanation: "Le texte dit 'Les allergies doivent etre declarees a l'administration'." },
-    ],
-  },
-  {
-    id: "r13",
-    title: "Le parc du quartier",
-    level: "A1",
-    topic: "Vie quotidienne",
-    time_limit: 300,
-    created_at: new Date().toISOString(),
-    text: `Le parc Lafleur est ouvert du lundi au dimanche, de six heures a vingt-deux heures. Il y a un grand terrain de jeux pour les enfants, des bancs pour se reposer et un lac ou l'on peut nourrir les canards. En ete, il y a des concerts gratuits le dimanche apres-midi. Un kiosque vend de la creme glacee et des boissons fraiches. Les chiens sont admis mais ils doivent etre tenus en laisse. Les velos sont interdits dans le parc.`,
-    questions: [
-      { id: "q1", question: "A quelle heure ouvre le parc ?", options: ["5h", "6h", "7h", "8h"], correct_answer: 1, explanation: "Le texte dit 'de six heures a vingt-deux heures'." },
-      { id: "q2", question: "Que peut-on faire au lac ?", options: ["Nager", "Pecher", "Nourrir les canards", "Faire du kayak"], correct_answer: 2, explanation: "Le texte dit 'un lac ou l'on peut nourrir les canards'." },
-      { id: "q3", question: "Quand y a-t-il des concerts gratuits ?", options: ["Chaque soir", "Le dimanche apres-midi en ete", "Le samedi matin", "Tous les week-ends"], correct_answer: 1, explanation: "Le texte dit 'des concerts gratuits le dimanche apres-midi' en ete." },
-      { id: "q4", question: "Les chiens sont-ils admis dans le parc ?", options: ["Non, interdits", "Oui, librement", "Oui, en laisse", "Oui, seulement le matin"], correct_answer: 2, explanation: "Le texte dit 'Les chiens sont admis mais ils doivent etre tenus en laisse'." },
-      { id: "q5", question: "Qu'est-ce qui est interdit dans le parc ?", options: ["Les chiens", "Les enfants", "Les velos", "La musique"], correct_answer: 2, explanation: "Le texte dit 'Les velos sont interdits dans le parc'." },
-    ],
-  },
+          <Card className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 border-orange-200 dark:border-orange-900/30">
+            <CardBody className="p-6">
+              <div className="flex items-center gap-2 mb-4 text-orange-700 dark:text-orange-400">
+                <Mic size={18} />
+                <span className="font-semibold text-sm">Sujet a traiter</span>
+              </div>
+              <p className="text-surface-900 dark:text-white leading-relaxed">{selected.prompt}</p>
+              <div className="flex items-center gap-2 mt-4 text-surface-500 text-sm">
+                <Clock size={14} />
+                <span>Duree recommandee : {Math.floor(selected.duration / 60)} minutes</span>
+              </div>
+            </CardBody>
+          </Card>
 
-  // ─── NEW A2 READING EXERCISES (r14–r23) ───────────────────────────────────
-  {
-    id: "r14",
-    title: "La carte d'assurance maladie",
-    level: "A2",
-    topic: "Immigration",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Lorsque vous arrivez au Quebec en tant que resident permanent, vous devez vous inscrire a la Regie de l'assurance maladie du Quebec, connue sous le nom de RAMQ. L'inscription vous donne droit a la carte soleil, qui permet d'acceder gratuitement aux soins medicaux. Il faut attendre trois mois apres votre arrivee avant d'obtenir cette couverture. Pendant cette periode d'attente, il est conseille d'avoir une assurance privee. Pour s'inscrire, vous devez fournir votre permis de sejour, une preuve d'identite et une preuve d'adresse au Quebec.`,
-    questions: [
-      { id: "q1", question: "Que signifie RAMQ ?", options: ["Reseau d'aide medicale du Quebec", "Regie de l'assurance maladie du Quebec", "Regime d'assurance medicale Quebec", "Reglement d'aide medicale au Quebec"], correct_answer: 1, explanation: "Le texte dit 'Regie de l'assurance maladie du Quebec'." },
-      { id: "q2", question: "Combien de temps faut-il attendre avant d'avoir la couverture ?", options: ["Un mois", "Deux mois", "Trois mois", "Six mois"], correct_answer: 2, explanation: "Le texte dit 'Il faut attendre trois mois apres votre arrivee'." },
-      { id: "q3", question: "Que recommande-t-on pendant la periode d'attente ?", options: ["Ne pas aller chez le medecin", "Avoir une assurance privee", "Aller aux urgences uniquement", "Payer les soins comptant"], correct_answer: 1, explanation: "Le texte dit 'il est conseille d'avoir une assurance privee'." },
-      { id: "q4", question: "Quel document ne faut PAS fournir pour l'inscription ?", options: ["Permis de sejour", "Preuve d'identite", "Certificat de naissance", "Preuve d'adresse au Quebec"], correct_answer: 2, explanation: "Le certificat de naissance n'est pas mentionne parmi les documents requis." },
-      { id: "q5", question: "Comment s'appelle la carte d'assurance maladie au Quebec ?", options: ["La carte rouge", "La carte verte", "La carte soleil", "La carte sante"], correct_answer: 2, explanation: "Le texte dit 'la carte soleil'." },
-    ],
-  },
-  {
-    id: "r15",
-    title: "Le transport adapte",
-    level: "A2",
-    topic: "Transport",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Le transport adapte est un service de la STM destine aux personnes ayant des limitations fonctionnelles permanentes qui les empechent d'utiliser le transport en commun regulier. Pour beneficier de ce service, vous devez faire une demande aupres de la STM et etre evalue par un professionnel de la sante. Le tarif est le meme que pour le transport regulier. Le vehicule vient vous chercher a votre domicile et vous depose a destination. Il faut reserver votre trajet un jour avant, avant midi. Le service est disponible toute l'annee, sept jours sur sept.`,
-    questions: [
-      { id: "q1", question: "A qui s'adresse le transport adapte ?", options: ["Aux personnes agees uniquement", "Aux enfants", "Aux personnes avec des limitations fonctionnelles permanentes", "Aux touristes"], correct_answer: 2, explanation: "Le texte dit 'aux personnes ayant des limitations fonctionnelles permanentes'." },
-      { id: "q2", question: "Que faut-il faire pour beneficier du service ?", options: ["Payer un abonnement special", "Faire une demande et etre evalue", "Appeler chaque jour", "Avoir un billet medical"], correct_answer: 1, explanation: "Le texte dit 'faire une demande aupres de la STM et etre evalue'." },
-      { id: "q3", question: "Quel est le tarif du transport adapte ?", options: ["Gratuit", "Moins cher que le transport regulier", "Le meme que le transport regulier", "Plus cher que le transport regulier"], correct_answer: 2, explanation: "Le texte dit 'Le tarif est le meme que pour le transport regulier'." },
-      { id: "q4", question: "Quand faut-il reserver le trajet ?", options: ["Le jour meme", "La veille avant midi", "Deux jours avant", "Une semaine avant"], correct_answer: 1, explanation: "Le texte dit 'Il faut reserver votre trajet un jour avant, avant midi'." },
-      { id: "q5", question: "Quand le service est-il disponible ?", options: ["Seulement en semaine", "Du lundi au samedi", "Toute l'annee, sept jours sur sept", "Seulement le jour"], correct_answer: 2, explanation: "Le texte dit 'toute l'annee, sept jours sur sept'." },
-    ],
-  },
-  {
-    id: "r16",
-    title: "Ouvrir un compte bancaire",
-    level: "A2",
-    topic: "Services",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Pour ouvrir un compte bancaire au Canada en tant que nouvel arrivant, vous devez visiter une succursale bancaire avec certains documents. Il vous faut deux pieces d'identite, dont votre passeport. Vous aurez aussi besoin de votre permis de residence ou de votre visa. Certaines banques comme Desjardins et la Banque Nationale ont des programmes speciaux pour les nouveaux arrivants. Ces programmes offrent souvent des comptes sans frais pendant les six premiers mois. Vous n'avez pas besoin d'un emploi ou d'un dossier de credit pour ouvrir un compte de base.`,
-    questions: [
-      { id: "q1", question: "Combien de pieces d'identite faut-il apporter ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Le texte dit 'deux pieces d'identite'." },
-      { id: "q2", question: "Quelle banque quebecoise est mentionnee ?", options: ["Banque Scotia", "Desjardins", "Banque Laurentienne", "Banque TD"], correct_answer: 1, explanation: "Le texte mentionne 'Desjardins et la Banque Nationale'." },
-      { id: "q3", question: "Que proposent les programmes pour nouveaux arrivants ?", options: ["Un pret sans interet", "Des comptes sans frais pendant 6 mois", "Un salaire de bienvenue", "Des cartes de credit gratuites"], correct_answer: 1, explanation: "Le texte dit 'comptes sans frais pendant les six premiers mois'." },
-      { id: "q4", question: "Faut-il avoir un emploi pour ouvrir un compte ?", options: ["Oui, obligatoirement", "Oui, ou un dossier de credit", "Non, ce n'est pas necessaire", "Seulement pour un compte courant"], correct_answer: 2, explanation: "Le texte dit 'Vous n'avez pas besoin d'un emploi ou d'un dossier de credit'." },
-      { id: "q5", question: "Ou faut-il aller pour ouvrir un compte ?", options: ["En ligne uniquement", "Par telephone", "Dans une succursale bancaire", "Au gouvernement"], correct_answer: 2, explanation: "Le texte dit 'vous devez visiter une succursale bancaire'." },
-    ],
-  },
-  {
-    id: "r17",
-    title: "Les services a l'enfance",
-    level: "A2",
-    topic: "Famille",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Au Quebec, le gouvernement offre plusieurs aides financieres aux familles avec enfants. L'Allocation canadienne pour enfants est un paiement mensuel verse par le gouvernement federal. Son montant depend du nombre d'enfants et du revenu familial. Le Quebec offre aussi une aide complementaire, le Soutien aux enfants. De plus, les familles ont acces aux Centres de la petite enfance, appeles CPE, ou les frais de garde sont limites a environ dix dollars par jour. Ces services aident les parents a retourner sur le marche du travail.`,
-    questions: [
-      { id: "q1", question: "Quel gouvernement verse l'Allocation canadienne pour enfants ?", options: ["Le Quebec", "Le gouvernement federal", "La municipalite", "L'Ontario"], correct_answer: 1, explanation: "Le texte dit 'verse par le gouvernement federal'." },
-      { id: "q2", question: "De quoi depend le montant de l'allocation ?", options: ["De l'age des enfants", "Du nombre d'enfants et du revenu familial", "Du quartier", "De l'emploi des parents"], correct_answer: 1, explanation: "Le texte dit 'depend du nombre d'enfants et du revenu familial'." },
-      { id: "q3", question: "Que signifie CPE ?", options: ["Centre pedagogique d'education", "Centres de la petite enfance", "Centre public educatif", "Conseil pour l'enfance"], correct_answer: 1, explanation: "Le texte dit 'les Centres de la petite enfance, appeles CPE'." },
-      { id: "q4", question: "Combien coutent les frais de garde en CPE ?", options: ["Gratuit", "Environ 5$ par jour", "Environ 10$ par jour", "Environ 20$ par jour"], correct_answer: 2, explanation: "Le texte dit 'limites a environ dix dollars par jour'." },
-      { id: "q5", question: "A quoi aident ces services selon le texte ?", options: ["A faire des economies", "A payer moins d'impots", "A retourner sur le marche du travail", "A avoir plus d'enfants"], correct_answer: 2, explanation: "Le texte dit 'aident les parents a retourner sur le marche du travail'." },
-    ],
-  },
-  {
-    id: "r18",
-    title: "Le marche de l'emploi au Quebec",
-    level: "A2",
-    topic: "Travail",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Le Quebec connait une importante penurie de main-d'oeuvre dans plusieurs secteurs. Les secteurs les plus touches sont la sante, l'education, le commerce de detail et la restauration. Pour aider les entreprises, le gouvernement a mis en place des programmes de formation acceleree. Des organismes comme Emploi-Quebec offrent des services gratuits aux chercheurs d'emploi : aide a la redaction du CV, preparation aux entrevues et information sur les formations disponibles. Le salaire minimum au Quebec est parmi les plus eleves des provinces canadiennes.`,
-    questions: [
-      { id: "q1", question: "Quel probleme le Quebec connait-il sur le marche du travail ?", options: ["Un surplus de travailleurs", "Un manque d'entreprises", "Une penurie de main-d'oeuvre", "Des salaires trop eleves"], correct_answer: 2, explanation: "Le texte dit 'une importante penurie de main-d'oeuvre'." },
-      { id: "q2", question: "Quel secteur n'est PAS mentionne comme touche ?", options: ["La sante", "L'education", "La technologie", "La restauration"], correct_answer: 2, explanation: "La technologie n'est pas mentionnee dans la liste des secteurs touches." },
-      { id: "q3", question: "Quel type de programmes le gouvernement a-t-il cree ?", options: ["Des programmes de retraite anticipee", "Des formations accelerees", "Des subventions aux entreprises", "Des programmes d'immigration"], correct_answer: 1, explanation: "Le texte dit 'programmes de formation acceleree'." },
-      { id: "q4", question: "Quels services offre Emploi-Quebec ?", options: ["Des emplois garantis", "Des logements", "Aide CV, preparation entrevues et info formations", "Des prets sans interet"], correct_answer: 2, explanation: "Le texte mentionne 'aide a la redaction du CV, preparation aux entrevues et information sur les formations'." },
-      { id: "q5", question: "Comment est le salaire minimum au Quebec ?", options: ["Le plus bas du Canada", "Dans la moyenne canadienne", "Parmi les plus eleves des provinces", "Le meme que partout"], correct_answer: 2, explanation: "Le texte dit 'parmi les plus eleves des provinces canadiennes'." },
-    ],
-  },
-  {
-    id: "r19",
-    title: "Les depanneurs au Quebec",
-    level: "A2",
-    topic: "Vie quebecoise",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Le depanneur est une institution quebecoise unique. Ce type de petit commerce est ouvert tard le soir, parfois toute la nuit. On y trouve des boissons, des collations, des cigarettes, des journaux et des produits de base comme du lait et du pain. Les depanneurs vendent aussi des billets de loterie. Ils sont presents dans presque tous les quartiers. Le terme 'depanneur' vient du verbe 'depanner', qui signifie aider quelqu'un en cas de probleme. Les depanneurs font partie du paysage culturel du Quebec.`,
-    questions: [
-      { id: "q1", question: "Qu'est-ce qu'un depanneur ?", options: ["Un restaurant rapide", "Un petit commerce ouvert tard le soir", "Une grande epicerie", "Un magasin de vetements"], correct_answer: 1, explanation: "Le texte dit 'Ce type de petit commerce est ouvert tard le soir'." },
-      { id: "q2", question: "Que vend-on dans un depanneur ?", options: ["Uniquement de l'alcool", "Boissons, collations, cigarettes, journaux et produits de base", "Des medicaments et vitamines", "Des electroniques"], correct_answer: 1, explanation: "Le texte enumere 'des boissons, des collations, des cigarettes, des journaux'." },
-      { id: "q3", question: "Que vend-on d'autre dans un depanneur ?", options: ["Des billets de concert", "Des billets de metro", "Des billets de loterie", "Des billets d'avion"], correct_answer: 2, explanation: "Le texte dit 'Les depanneurs vendent aussi des billets de loterie'." },
-      { id: "q4", question: "D'ou vient le terme 'depanneur' ?", options: ["De 'panneau'", "Du verbe 'depanner' qui signifie aider", "Du mot 'pain'", "D'un nom propre"], correct_answer: 1, explanation: "Le texte dit 'du verbe depanner, qui signifie aider quelqu'un en cas de probleme'." },
-      { id: "q5", question: "Ou trouve-t-on des depanneurs ?", options: ["Seulement en centre-ville", "Dans les centres commerciaux", "Dans presque tous les quartiers", "Seulement dans les villes"], correct_answer: 2, explanation: "Le texte dit 'presents dans presque tous les quartiers'." },
-    ],
-  },
-  {
-    id: "r20",
-    title: "La bibliotheque publique",
-    level: "A2",
-    topic: "Culture",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `La Bibliotheque et Archives nationales du Quebec, connue sous le nom de BAnQ, offre un acces gratuit a des milliers de livres, de films et de documents numeriques. Pour obtenir une carte de membre, il suffit d'etre resident du Quebec et de presenter une preuve d'identite et d'adresse. La carte est gratuite. Vous pouvez emprunter jusqu'a quinze documents pour une periode de vingt et un jours. La BAnQ organise aussi des evenements culturels gratuits comme des conferences et des expositions. Elle possede plusieurs succursales dans les quartiers de Montreal.`,
-    questions: [
-      { id: "q1", question: "Que signifie BAnQ ?", options: ["Bureau des arts nationaux du Quebec", "Bibliotheque et Archives nationales du Quebec", "Bibliotheque academique nationale du Quebec", "Bureau d'aide nationale du Quebec"], correct_answer: 1, explanation: "Le texte dit 'Bibliotheque et Archives nationales du Quebec'." },
-      { id: "q2", question: "Combien coute la carte de membre ?", options: ["5$", "10$ par an", "Gratuite", "20$ par an"], correct_answer: 2, explanation: "Le texte dit 'La carte est gratuite'." },
-      { id: "q3", question: "Combien de documents peut-on emprunter ?", options: ["Jusqu'a 5", "Jusqu'a 10", "Jusqu'a 15", "Jusqu'a 20"], correct_answer: 2, explanation: "Le texte dit 'Vous pouvez emprunter jusqu'a quinze documents'." },
-      { id: "q4", question: "Pour combien de temps peut-on emprunter des documents ?", options: ["7 jours", "14 jours", "21 jours", "30 jours"], correct_answer: 2, explanation: "Le texte dit 'pour une periode de vingt et un jours'." },
-      { id: "q5", question: "Quel type d'evenement la BAnQ organise-t-elle ?", options: ["Des concerts payants", "Des expositions gratuites et conferences", "Des cours de langue", "Des films seulement"], correct_answer: 1, explanation: "Le texte dit 'des conferences et des expositions' gratuites." },
-    ],
-  },
-  {
-    id: "r21",
-    title: "Les cours de francisation",
-    level: "A2",
-    topic: "Immigration",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Au Quebec, les immigrants adultes peuvent suivre des cours de francais gratuits finances par le gouvernement. Ces cours, appeles francisation, sont disponibles en format intensif a temps plein ou en cours du soir pour ceux qui travaillent. Les cours couvrent la grammaire, le vocabulaire, la conversation et la culture quebecoise. Pendant les cours a temps plein, les participants peuvent recevoir une aide financiere du gouvernement. Il faut s'inscrire via le portail gouvernemental Francisation Quebec. Ces cours sont disponibles en presentiel ou en ligne selon les preferences.`,
-    questions: [
-      { id: "q1", question: "Qui peut suivre les cours de francisation ?", options: ["Les eleves du secondaire", "Les immigrants adultes", "Les citoyens canadiens", "Les employes gouvernementaux"], correct_answer: 1, explanation: "Le texte dit 'les immigrants adultes'." },
-      { id: "q2", question: "Combien coutent ces cours ?", options: ["100$ par mois", "50$ par cours", "Gratuit", "500$ par session"], correct_answer: 2, explanation: "Le texte dit 'cours de francais gratuits finances par le gouvernement'." },
-      { id: "q3", question: "Qu'est-ce que les cours couvrent ?", options: ["Seulement la grammaire", "La grammaire, vocabulaire, conversation et culture quebecoise", "Seulement la conversation", "L'histoire du Canada"], correct_answer: 1, explanation: "Le texte dit 'la grammaire, le vocabulaire, la conversation et la culture quebecoise'." },
-      { id: "q4", question: "Qu'est-ce que les participants a temps plein peuvent recevoir ?", options: ["Un diplome universitaire", "Un certificat de travail", "Une aide financiere", "Un logement"], correct_answer: 2, explanation: "Le texte dit 'les participants peuvent recevoir une aide financiere du gouvernement'." },
-      { id: "q5", question: "Comment s'inscrire aux cours ?", options: ["Directement en classe", "Par telephone", "Via le portail Francisation Quebec", "Aupres d'une ecole privee"], correct_answer: 2, explanation: "Le texte dit 'via le portail gouvernemental Francisation Quebec'." },
-    ],
-  },
-  {
-    id: "r22",
-    title: "Le systeme scolaire au Quebec",
-    level: "A2",
-    topic: "Education",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Au Quebec, le parcours scolaire des enfants commence a la maternelle, a l'age de cinq ans. L'enseignement primaire dure six ans, suivi de cinq ans au secondaire. Apres le secondaire, les jeunes peuvent choisir d'aller au CEGEP, qui signifie College d'enseignement general et professionnel. Le CEGEP propose des programmes pre-universitaires de deux ans ou des formations techniques de trois ans. Les universites quebecoises sont accessibles apres le CEGEP. L'enseignement public est gratuit du primaire a la fin du secondaire. Les frais de scolarite universitaires sont parmi les moins eleves au Canada.`,
-    questions: [
-      { id: "q1", question: "A quel age les enfants commencent-ils la maternelle ?", options: ["4 ans", "5 ans", "6 ans", "7 ans"], correct_answer: 1, explanation: "Le texte dit 'a l'age de cinq ans'." },
-      { id: "q2", question: "Combien d'annees dure le primaire ?", options: ["4 ans", "5 ans", "6 ans", "7 ans"], correct_answer: 2, explanation: "Le texte dit 'L'enseignement primaire dure six ans'." },
-      { id: "q3", question: "Que signifie CEGEP ?", options: ["Centre d'enseignement general et pedagogique", "College d'enseignement general et professionnel", "Centre d'education generale et professionnelle", "College d'etudes generales et practiques"], correct_answer: 1, explanation: "Le texte dit 'College d'enseignement general et professionnel'." },
-      { id: "q4", question: "Combien d'annees dure un programme pre-universitaire au CEGEP ?", options: ["1 an", "2 ans", "3 ans", "4 ans"], correct_answer: 1, explanation: "Le texte dit 'programmes pre-universitaires de deux ans'." },
-      { id: "q5", question: "Comment sont les frais universitaires au Quebec ?", options: ["Les plus eleves du Canada", "Dans la moyenne nationale", "Parmi les moins eleves du Canada", "Gratuits"], correct_answer: 2, explanation: "Le texte dit 'parmi les moins eleves au Canada'." },
-    ],
-  },
-  {
-    id: "r23",
-    title: "Le reseau de sante en region",
-    level: "A2",
-    topic: "Sante",
-    time_limit: 480,
-    created_at: new Date().toISOString(),
-    text: `Vivre en region au Quebec presente certains defis en matiere d'acces aux soins de sante. Dans plusieurs petites villes, il y a un manque de medecins de famille. Les habitants doivent parfois parcourir de longues distances pour consulter un specialiste. Pour remedier a ce probleme, le gouvernement du Quebec a developpe des services de teleremedecine. Ces services permettent aux patients de rencontrer un medecin par videoconference. Les infirmieres praticiciennes specialisees jouent aussi un role important dans ces regions eloignees. Elles peuvent prescrire des medicaments et faire certains diagnostics.`,
-    questions: [
-      { id: "q1", question: "Quel est un defi de sante dans les regions du Quebec ?", options: ["Trop de medecins", "Manque de pharmacies", "Manque de medecins de famille", "Hopitaux trop modernes"], correct_answer: 2, explanation: "Le texte dit 'il y a un manque de medecins de famille'." },
-      { id: "q2", question: "Pour quoi les habitants doivent-ils parfois voyager loin ?", options: ["Pour acheter des medicaments", "Pour consulter un specialiste", "Pour trouver une pharmacie", "Pour faire des analyses"], correct_answer: 1, explanation: "Le texte dit 'parcourir de longues distances pour consulter un specialiste'." },
-      { id: "q3", question: "Qu'est-ce que la teleremedecine permet de faire ?", options: ["Commander des medicaments en ligne", "Rencontrer un medecin par videoconference", "Obtenir une ordonnance automatique", "Faire des analyses a domicile"], correct_answer: 1, explanation: "Le texte dit 'rencontrer un medecin par videoconference'." },
-      { id: "q4", question: "Que peuvent faire les infirmieres praticiciennes ?", options: ["Faire des operations chirurgicales", "Prescrire des medicaments et faire des diagnostics", "Seulement donner des conseils", "Gerer les hospitalisations"], correct_answer: 1, explanation: "Le texte dit 'Elles peuvent prescrire des medicaments et faire certains diagnostics'." },
-      { id: "q5", question: "Ou jouent-elles un role important ?", options: ["En ville", "Dans les hopitaux universitaires", "Dans les regions eloignees", "Dans les cliniques privees"], correct_answer: 2, explanation: "Le texte dit 'dans ces regions eloignees'." },
-    ],
-  },
+          {selected.example_response && (
+            <Card>
+              <CardBody>
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wide mb-2">Exemple de reponse (niveau {selected.level})</p>
+                <p className="text-sm text-surface-600 dark:text-surface-400 italic leading-relaxed">{selected.example_response}</p>
+              </CardBody>
+            </Card>
+          )}
 
-  // ─── NEW B1 READING EXERCISES (r24–r33) ───────────────────────────────────
-  {
-    id: "r24",
-    title: "La reconnaissance des diplomes etrangers",
-    level: "B1",
-    topic: "Immigration",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `Pour les immigrants qualifies qui arrivent au Quebec, la reconnaissance de leurs diplomes etrangers est souvent l'un des obstacles les plus frustrants a l'integration professionnelle. Le processus varie selon la profession. Pour les professions reglementees comme la medecine, le droit, l'ingenierie ou la comptabilite, les candidats doivent passer par des ordres professionnels qui evaluent les competences et imposent souvent des examens complementaires ou des stages d'adaptation. Pour les professions non reglementees, la reconnaissance est plus souple et depend des exigences des employeurs. Des organismes comme le Centre de services aux immigrants et le programme Interconnexion aident les nouveaux arrivants a naviguer dans ce processus complexe et a etablir des contacts avec des professionnels dans leur domaine.`,
-    questions: [
-      { id: "q1", question: "Quel est l'un des principaux obstacles a l'integration professionnelle des immigrants ?", options: ["La langue francaise", "La reconnaissance des diplomes etrangers", "Le permis de travail", "L'acces aux syndicats"], correct_answer: 1, explanation: "Le texte dit 'la reconnaissance de leurs diplomes etrangers est souvent l'un des obstacles les plus frustrants'." },
-      { id: "q2", question: "Par qui les professions reglementees sont-elles evaluees ?", options: ["Le gouvernement directement", "Les universites", "Les ordres professionnels", "Les employeurs"], correct_answer: 2, explanation: "Le texte dit 'les candidats doivent passer par des ordres professionnels'." },
-      { id: "q3", question: "Quelle profession est mentionnee comme reglementee ?", options: ["Infirmiere", "Cuisine", "Comptabilite", "Journalisme"], correct_answer: 2, explanation: "Le texte mentionne 'la medecine, le droit, l'ingenierie ou la comptabilite'." },
-      { id: "q4", question: "Comment est la reconnaissance pour les professions non reglementees ?", options: ["Impossible", "Tres stricte", "Plus souple selon les employeurs", "Automatique"], correct_answer: 2, explanation: "Le texte dit 'la reconnaissance est plus souple et depend des exigences des employeurs'." },
-      { id: "q5", question: "Quel programme aide les immigrants a etablir des contacts professionnels ?", options: ["Francisation Quebec", "Emploi-Quebec", "Interconnexion", "CNESST"], correct_answer: 2, explanation: "Le texte mentionne 'le programme Interconnexion aident les nouveaux arrivants...a etablir des contacts avec des professionnels'." },
-    ],
-  },
-  {
-    id: "r25",
-    title: "L'ecologie urbaine a Montreal",
-    level: "B1",
-    topic: "Environnement",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `Montreal a adopte un plan de verdissement ambitieux pour lutter contre les ilots de chaleur urbains et ameliorer la qualite de vie de ses habitants. La ville a plante des milliers d'arbres le long des rues, installe des toits verts sur les batiments publics et cree de nouveaux parcs dans les quartiers defavorises. Le reseau de ruelles vertes, ou les habitants transforment les ruelles arriere en espaces vegetalises et communautaires, est devenu un modele reconnu dans les grandes metropoles nord-americaines. Ces initiatives s'inscrivent dans un objectif plus large de reduire l'empreinte carbone de la ville. Cependant, certains experts soulignent que le rythme des changements reste insuffisant face a l'urgence climatique.`,
-    questions: [
-      { id: "q1", question: "Pourquoi Montreal a-t-elle adopte un plan de verdissement ?", options: ["Pour attirer les touristes", "Pour lutter contre les ilots de chaleur et ameliorer la qualite de vie", "Pour augmenter le tourisme", "Pour satisfaire les entreprises"], correct_answer: 1, explanation: "Le texte dit 'pour lutter contre les ilots de chaleur urbains et ameliorer la qualite de vie'." },
-      { id: "q2", question: "Qu'a-t-on fait sur les batiments publics ?", options: ["On a ajoute des panneaux solaires", "On a installe des toits verts", "On a construit des terrasses", "On a plante des jardins"], correct_answer: 1, explanation: "Le texte dit 'installe des toits verts sur les batiments publics'." },
-      { id: "q3", question: "Qu'est-ce qu'une ruelle verte ?", options: ["Une ruelle peinte en vert", "Une ruelle vegetalisee par les habitants", "Un parc lineaire officiel", "Une piste cyclable"], correct_answer: 1, explanation: "Le texte dit 'les habitants transforment les ruelles arriere en espaces vegetalises et communautaires'." },
-      { id: "q4", question: "Quel est l'objectif global de ces initiatives ?", options: ["Creer de nouveaux emplois", "Attirer des entreprises etrangeres", "Reduire l'empreinte carbone de la ville", "Augmenter les revenus fiscaux"], correct_answer: 2, explanation: "Le texte dit 'reduire l'empreinte carbone de la ville'." },
-      { id: "q5", question: "Quelle critique est formulee par certains experts ?", options: ["Le plan est trop couteux", "Le rythme des changements est insuffisant", "Les arbres sont mal adaptes", "Les habitants ne participent pas"], correct_answer: 1, explanation: "Le texte dit 'le rythme des changements reste insuffisant face a l'urgence climatique'." },
-    ],
-  },
-  {
-    id: "r26",
-    title: "Les nouvelles technologies et le marche du travail",
-    level: "B1",
-    topic: "Technologie",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `L'automatisation et l'intelligence artificielle transforment profondement le marche du travail au Quebec. Des etudes recentes indiquent que pres de 40% des emplois actuels pourraient etre partiellement ou entierement automatises au cours des vingt prochaines annees. Les secteurs les plus vulnerables sont la fabrication, le commerce de detail et les services administratifs. En revanche, des domaines comme la sante, l'education, le service social et la creativite sont moins susceptibles d'etre remplaces par des machines. Cette transformation exige une adaptation rapide des travailleurs, notamment par la formation continue et le developpement de nouvelles competences. Le gouvernement provincial a cree des programmes de soutien a la reconversion professionnelle pour aider les travailleurs touches.`,
-    questions: [
-      { id: "q1", question: "Quel pourcentage des emplois pourrait etre automatise ?", options: ["20%", "30%", "40%", "50%"], correct_answer: 2, explanation: "Le texte dit 'pres de 40% des emplois actuels'." },
-      { id: "q2", question: "Quel secteur est le plus vulnerable ?", options: ["La sante", "L'education", "La fabrication et le commerce de detail", "Le service social"], correct_answer: 2, explanation: "Le texte dit 'Les secteurs les plus vulnerables sont la fabrication, le commerce de detail'." },
-      { id: "q3", question: "Quel secteur est moins susceptible d'etre remplace ?", options: ["Les services administratifs", "La fabrication", "La sante et l'education", "Le commerce de detail"], correct_answer: 2, explanation: "Le texte dit 'la sante, l'education, le service social et la creativite sont moins susceptibles'." },
-      { id: "q4", question: "Que doivent faire les travailleurs face a cette transformation ?", options: ["Changer de pays", "Prendre leur retraite anticipee", "Adapter leurs competences par la formation continue", "Rejoindre les syndicats"], correct_answer: 2, explanation: "Le texte dit 'adaptation rapide des travailleurs, notamment par la formation continue'." },
-      { id: "q5", question: "Qu'a cree le gouvernement pour les travailleurs touches ?", options: ["Des allocations de chomage elargies", "Des programmes de soutien a la reconversion professionnelle", "Des taxes sur l'automatisation", "Des garanties d'emploi"], correct_answer: 1, explanation: "Le texte dit 'des programmes de soutien a la reconversion professionnelle'." },
-    ],
-  },
-  {
-    id: "r27",
-    title: "La cooperative d'habitation",
-    level: "B1",
-    topic: "Logement",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `Face a la crise du logement qui touche les grandes villes quebecoises, les cooperatives d'habitation representent une alternative interessante au marche locatif prive. Dans une cooperative, les residents sont a la fois locataires et proprietaires collectifs de l'immeuble. Ils paient un loyer inferieur au marche, mais ils s'engagent aussi a participer activement a la gestion de l'immeuble, notamment en sigeant sur des comites ou en effectuant des taches d'entretien. La duree d'attente pour integrer une cooperative peut etre longue, parfois plusieurs annees. La Confederation quebecoise des cooperatives d'habitation soutient le developpement de ce type de logement. Ces cooperatives sont surtout concentrees dans les grandes villes comme Montreal et Quebec City.`,
-    questions: [
-      { id: "q1", question: "Pourquoi les cooperatives sont-elles une alternative interessante ?", options: ["Parce qu'elles sont gratuites", "Face a la crise du logement", "Parce qu'elles sont luxueuses", "Parce qu'elles sont en banlieue"], correct_answer: 1, explanation: "Le texte dit 'Face a la crise du logement...les cooperatives d'habitation representent une alternative interessante'." },
-      { id: "q2", question: "Quel double role ont les residents en cooperative ?", options: ["Locataires et managers", "Locataires et proprietaires collectifs", "Proprietaires et vendeurs", "Locataires et investisseurs"], correct_answer: 1, explanation: "Le texte dit 'les residents sont a la fois locataires et proprietaires collectifs de l'immeuble'." },
-      { id: "q3", question: "Comment est le loyer en cooperative ?", options: ["Plus eleve que le marche", "Egal au marche", "Inferieur au marche", "Variable selon les revenus"], correct_answer: 2, explanation: "Le texte dit 'ils paient un loyer inferieur au marche'." },
-      { id: "q4", question: "Quelle obligation ont les residents ?", options: ["Peindre leur appartement", "Participer a la gestion de l'immeuble", "Connaitre leurs voisins", "Travailler dans l'immeuble"], correct_answer: 1, explanation: "Le texte dit 's'engagent aussi a participer activement a la gestion de l'immeuble'." },
-      { id: "q5", question: "Quelle est la duree d'attente pour integrer une cooperative ?", options: ["Quelques semaines", "Quelques mois", "Parfois plusieurs annees", "Au moins dix ans"], correct_answer: 2, explanation: "Le texte dit 'parfois plusieurs annees'." },
-    ],
-  },
-  {
-    id: "r28",
-    title: "L'acces a la justice au Quebec",
-    level: "B1",
-    topic: "Societe",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `L'acces a la justice est un droit fondamental, mais pour de nombreux Quebecois, les couts eleves des avocats rendent ce droit difficile a exercer en pratique. Le gouvernement du Quebec a donc mis en place l'aide juridique, un programme qui offre une representation legale gratuite ou a tarif reduit aux personnes a faible revenu. Pour y avoir droit, votre revenu annuel doit etre inferieur a un certain seuil fixe par le gouvernement. En dehors de l'aide juridique, des ressources alternatives existent : les cliniques juridiques des universites permettent aux etudiants en droit d'aider des citoyens sous supervision. Les ordres professionnels offrent aussi des consultations gratuites. Finalement, le tribunal en ligne permet de regler certains litiges sans avocat.`,
-    questions: [
-      { id: "q1", question: "Quel est l'obstacle principal a l'acces a la justice mentionne ?", options: ["Le manque d'avocats", "Les couts eleves des avocats", "La complexite des lois", "Le manque de tribunaux"], correct_answer: 1, explanation: "Le texte dit 'les couts eleves des avocats rendent ce droit difficile a exercer'." },
-      { id: "q2", question: "Qu'est-ce que l'aide juridique ?", options: ["Un programme de formation pour avocats", "Une representation legale gratuite pour les personnes a faible revenu", "Un tribunal simplifie", "Des cours de droit gratuits"], correct_answer: 1, explanation: "Le texte dit 'un programme qui offre une representation legale gratuite ou a tarif reduit aux personnes a faible revenu'." },
-      { id: "q3", question: "Quel critere faut-il respecter pour l'aide juridique ?", options: ["Etre chomeur", "Avoir un revenu annuel inferieur a un certain seuil", "Etre etudiant", "Etre immigrant"], correct_answer: 1, explanation: "Le texte dit 'votre revenu annuel doit etre inferieur a un certain seuil'." },
-      { id: "q4", question: "Qui aide les citoyens dans les cliniques juridiques universitaires ?", options: ["Des avocats benevoles", "Des juges retaites", "Des etudiants en droit sous supervision", "Des agents gouvernementaux"], correct_answer: 2, explanation: "Le texte dit 'les etudiants en droit d'aider des citoyens sous supervision'." },
-      { id: "q5", question: "A quoi sert le tribunal en ligne ?", options: ["A regler des crimes graves", "A regler certains litiges sans avocat", "A faire appel de toutes les decisions", "A consulter des avocats gratuitement"], correct_answer: 1, explanation: "Le texte dit 'le tribunal en ligne permet de regler certains litiges sans avocat'." },
-    ],
-  },
-  {
-    id: "r29",
-    title: "L'agriculture urbaine a Montreal",
-    level: "B1",
-    topic: "Environnement",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `L'agriculture urbaine prend de l'ampleur a Montreal, transformant des espaces inutilises en potagers productifs. Des toits d'immeubles aux ruelles, en passant par les jardins communautaires, cette tendance repond a plusieurs enjeux contemporains : securite alimentaire, lien social, education a l'environnement et reduction de l'empreinte ecologique. La ville de Montreal compte aujourd'hui plus de cent jardins communautaires, ou les residents peuvent louer une parcelle a prix modique pour cultiver leurs propres legumes et herbes. Lufa Farms est un exemple quebecois innovant de fermes sur les toits qui produit des legumes biologiques vendus directement aux consommateurs via un systeme de paniers. Ces initiatives s'inscrivent dans une vision de ville durable et resiliente.`,
-    questions: [
-      { id: "q1", question: "Qu'est-ce que l'agriculture urbaine transforme ?", options: ["Des parcs publics", "Des espaces inutilises en potagers productifs", "Des immeubles en fermes", "Des ruelles en pistes cyclables"], correct_answer: 1, explanation: "Le texte dit 'transformant des espaces inutilises en potagers productifs'." },
-      { id: "q2", question: "Quel est un des enjeux auxquels repond cette tendance ?", options: ["Reduire le chomage", "La securite alimentaire", "Augmenter le tourisme", "Creer des emplois verts"], correct_answer: 1, explanation: "Le texte dit 'securite alimentaire, lien social, education a l'environnement'." },
-      { id: "q3", question: "Combien de jardins communautaires Montreal compte-t-elle ?", options: ["Plus de 50", "Plus de 100", "Plus de 150", "Plus de 200"], correct_answer: 1, explanation: "Le texte dit 'plus de cent jardins communautaires'." },
-      { id: "q4", question: "Comment les residents acquerent-ils une parcelle ?", options: ["En achetant une part de la ville", "En faisant une demande gratuite", "En louant une parcelle a prix modique", "En participant a un tirage"], correct_answer: 2, explanation: "Le texte dit 'les residents peuvent louer une parcelle a prix modique'." },
-      { id: "q5", question: "Qu'est-ce que Lufa Farms ?", options: ["Un supermarche bio", "Une organisation gouvernementale", "Des fermes sur les toits vendant des legumes biologiques", "Un jardin communautaire classique"], correct_answer: 2, explanation: "Le texte dit 'Lufa Farms est un exemple quebecois innovant de fermes sur les toits qui produit des legumes biologiques'." },
-    ],
-  },
-  {
-    id: "r30",
-    title: "Le programme de parrainage communautaire",
-    level: "B1",
-    topic: "Immigration",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `Le parrainage communautaire de refugies est un programme qui permet a des groupes de citoyens canadiens de parrainer des refugies qui ne peuvent pas etre pris en charge par le gouvernement. Les parrains s'engagent a soutenir financierement et socialement les refugies paraines pendant au moins une annee. Ce soutien couvre le logement, la nourriture, les vetements, l'apprentissage du francais, la recherche d'emploi et l'integration sociale. Au Quebec, les groupes de parrainage peuvent etre des associations religieuses, des organismes communautaires ou meme des groupes de voisins. Ce programme permet une integration souvent plus personnalisee et efficace que le parrainage gouvernemental, selon plusieurs etudes. Plus de quatre mille refugies ont ete accueillis via ce programme en 2023.`,
-    questions: [
-      { id: "q1", question: "Qui peut parrainer des refugies via ce programme ?", options: ["Seulement les entreprises", "Des groupes de citoyens canadiens", "Le gouvernement uniquement", "Des organisations internationales"], correct_answer: 1, explanation: "Le texte dit 'permet a des groupes de citoyens canadiens de parrainer des refugies'." },
-      { id: "q2", question: "Combien de temps dure l'engagement minimum des parrains ?", options: ["Six mois", "Un an", "Deux ans", "Cinq ans"], correct_answer: 1, explanation: "Le texte dit 'pendant au moins une annee'." },
-      { id: "q3", question: "Que couvre le soutien des parrains ?", options: ["Seulement le logement", "Logement, nourriture, vetements, francais, emploi et integration", "Uniquement les aspects financiers", "Seulement la recherche d'emploi"], correct_answer: 1, explanation: "Le texte enumere 'le logement, la nourriture, les vetements, l'apprentissage du francais, la recherche d'emploi'." },
-      { id: "q4", question: "Quel type d'organisme peut former un groupe de parrainage ?", options: ["Uniquement des groupes religieux", "Des associations religieuses, organismes ou voisins", "Seulement des ONG internationales", "Des entreprises uniquement"], correct_answer: 1, explanation: "Le texte dit 'associations religieuses, des organismes communautaires ou meme des groupes de voisins'." },
-      { id: "q5", question: "Combien de refugies ont ete accueillis via ce programme en 2023 ?", options: ["Plus de 1000", "Plus de 2000", "Plus de 4000", "Plus de 10 000"], correct_answer: 2, explanation: "Le texte dit 'Plus de quatre mille refugies'." },
-    ],
-  },
-  {
-    id: "r31",
-    title: "La penurie de logements abordables",
-    level: "B1",
-    topic: "Logement",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `La penurie de logements abordables est devenue une crise majeure au Quebec, particulierement dans les centres urbains comme Montreal et Quebec City. Entre 2015 et 2023, les loyers moyens ont augmente de plus de 50% dans certains quartiers, tandis que les salaires ont cru beaucoup plus lentement. Cette situation pousse de nombreux menages a consacrer plus de 30% de leur revenu au logement, seuil considere comme critique par les experts. Les menages vulnerables, comme les familles monoparentales, les personnes agees et les nouveaux immigrants, sont disproportionnellement touches. Le gouvernement provincial a augmente les budgets pour le logement social et subventionne la construction de nouveaux logements, mais les experts estiment que l'offre reste tres insuffisante face a la demande croissante.`,
-    questions: [
-      { id: "q1", question: "De combien les loyers ont-ils augmente entre 2015 et 2023 dans certains quartiers ?", options: ["20%", "30%", "50%", "70%"], correct_answer: 2, explanation: "Le texte dit 'plus de 50% dans certains quartiers'." },
-      { id: "q2", question: "Quel seuil est considere comme critique pour le logement ?", options: ["20% du revenu", "25% du revenu", "30% du revenu", "40% du revenu"], correct_answer: 2, explanation: "Le texte dit '30% de leur revenu au logement, seuil considere comme critique'." },
-      { id: "q3", question: "Qui est disproportionnellement touche par cette crise ?", options: ["Les professionnels qualifies", "Les familles monoparentales, personnes agees et immigrants", "Les etudiants universitaires", "Les travailleurs du secteur public"], correct_answer: 1, explanation: "Le texte dit 'familles monoparentales, les personnes agees et les nouveaux immigrants'." },
-      { id: "q4", question: "Qu'a fait le gouvernement pour aider ?", options: ["Rien encore", "Augmente les budgets pour le logement social", "Baisse les taxes immobilieres", "Impose des plafonds de loyer stricts"], correct_answer: 1, explanation: "Le texte dit 'Le gouvernement provincial a augmente les budgets pour le logement social'." },
-      { id: "q5", question: "Selon les experts, quelle est la situation de l'offre face a la demande ?", options: ["L'offre est suffisante", "L'offre depasse la demande", "L'offre reste tres insuffisante", "L'offre et la demande sont equilibrees"], correct_answer: 2, explanation: "Le texte dit 'l'offre reste tres insuffisante face a la demande croissante'." },
-    ],
-  },
-  {
-    id: "r32",
-    title: "Les droits linguistiques en milieu de travail",
-    level: "B1",
-    topic: "Travail",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `La Loi 101, ou Charte de la langue francaise, garantit aux travailleurs du Quebec le droit de travailler en francais. Concretement, cela signifie que tout employeur de vingt-cinq employes ou plus doit etablir un comite de francisation et mettre en place un programme pour assurer que le francais soit la langue de travail. Les travailleurs ont le droit de recevoir leurs documents de travail, les offres d'emploi et les communications de l'employeur en francais. Les entreprises dont le siege social est hors du Quebec doivent aussi respecter ces regles. Les amendes pour les contrevenants peuvent etre importantes. L'Office quebecois de la langue francaise surveille l'application de cette loi et traite les plaintes des travailleurs qui se sentent lesees.`,
-    questions: [
-      { id: "q1", question: "Combien d'employes doit avoir une entreprise pour etre soumise a la francisation ?", options: ["10 employes ou plus", "25 employes ou plus", "50 employes ou plus", "100 employes ou plus"], correct_answer: 1, explanation: "Le texte dit 'tout employeur de vingt-cinq employes ou plus'." },
-      { id: "q2", question: "Que doivent etablir ces entreprises ?", options: ["Un departement RH", "Un comite de francisation", "Un programme bilingue", "Un syndicat"], correct_answer: 1, explanation: "Le texte dit 'doit etablir un comite de francisation'." },
-      { id: "q3", question: "Dans quelle langue les travailleurs ont-ils le droit de recevoir leurs documents ?", options: ["En anglais", "En francais", "Dans les deux langues", "Dans leur langue maternelle"], correct_answer: 1, explanation: "Le texte dit 'le droit de recevoir leurs documents de travail...en francais'." },
-      { id: "q4", question: "Les entreprises hors Quebec doivent-elles respecter ces regles ?", options: ["Non, elles sont exemptees", "Oui, si elles operent au Quebec", "Seulement les grandes multinationales", "Uniquement pour les employes francophones"], correct_answer: 1, explanation: "Le texte dit 'Les entreprises dont le siege social est hors du Quebec doivent aussi respecter ces regles'." },
-      { id: "q5", question: "Quel organisme surveille l'application de la loi ?", options: ["Le Ministere du Travail", "La Commission des droits", "L'Office quebecois de la langue francaise", "La Cour superieure"], correct_answer: 2, explanation: "Le texte dit 'L'Office quebecois de la langue francaise surveille l'application'." },
-    ],
-  },
-  {
-    id: "r33",
-    title: "Le bilan carbone personnel",
-    level: "B1",
-    topic: "Environnement",
-    time_limit: 600,
-    created_at: new Date().toISOString(),
-    text: `De plus en plus de Quebecois s'interessent a leur bilan carbone personnel et cherchent des moyens de le reduire dans leur quotidien. Selon des etudes recentes, un Canadien moyen emet environ vingt tonnes de CO2 equivalent par annee, bien au-dessus de la moyenne mondiale. Les principaux postes d'emission dans une vie quotidienne sont le transport, notamment l'utilisation de la voiture et les voyages en avion, l'alimentation, notamment la consommation de viande rouge, et le chauffage au mazout ou au gaz naturel. Pour reduire son impact, des actions simples comme utiliser les transports en commun, reduire la consommation de viande, isoler sa maison et choisir de l'electricite verte peuvent faire une difference significative. Plusieurs applications mobiles permettent maintenant de calculer et de suivre son empreinte carbone personnelle.`,
-    questions: [
-      { id: "q1", question: "Combien de tonnes de CO2 un Canadien moyen emet-il par an ?", options: ["Environ 10 tonnes", "Environ 15 tonnes", "Environ 20 tonnes", "Environ 30 tonnes"], correct_answer: 2, explanation: "Le texte dit 'environ vingt tonnes de CO2 equivalent par annee'." },
-      { id: "q2", question: "Quel est le principal poste d'emission mentionne en premier ?", options: ["L'alimentation", "Le chauffage", "Le transport", "L'electricite"], correct_answer: 2, explanation: "Le texte dit 'Les principaux postes d'emission...sont le transport, notamment l'utilisation de la voiture'." },
-      { id: "q3", question: "Comment le Canada se compare-t-il a la moyenne mondiale ?", options: ["En dessous de la moyenne", "Dans la moyenne", "Bien au-dessus de la moyenne", "Exactement dans la moyenne"], correct_answer: 2, explanation: "Le texte dit 'bien au-dessus de la moyenne mondiale'." },
-      { id: "q4", question: "Quel changement alimentaire peut reduire l'empreinte carbone ?", options: ["Manger plus local", "Reduire la consommation de viande rouge", "Eviter les fruits importes", "Cuisiner a la maison"], correct_answer: 1, explanation: "Le texte dit 'reduire la consommation de viande rouge'." },
-      { id: "q5", question: "Comment peut-on suivre son empreinte carbone aujourd'hui ?", options: ["En contactant le gouvernement", "Via des applications mobiles", "En consultant un expert", "Par des formulaires gouvernementaux"], correct_answer: 1, explanation: "Le texte dit 'Plusieurs applications mobiles permettent maintenant de calculer et de suivre son empreinte carbone'." },
-    ],
-  },
+          <Card>
+            <CardBody>
+              <h3 className="font-semibold text-surface-900 dark:text-white mb-3">Criteres d'evaluation</h3>
+              <div className="space-y-2">
+                {[
+                  { label: "Prononciation", desc: "Clarte et qualite de la prononciation" },
+                  { label: "Fluidite", desc: "Debit de parole et hesitations" },
+                  { label: "Grammaire", desc: "Precision des structures grammaticales" },
+                  { label: "Vocabulaire", desc: "Richesse et adequation du lexique" },
+                  { label: "Coherence", desc: "Organisation et logique du discours" },
+                ].map((c) => (
+                  <div key={c.label} className="flex items-center gap-3 text-sm">
+                    <CheckCircle size={14} className="text-success-500 flex-shrink-0" />
+                    <span className="font-medium text-surface-700 dark:text-surface-300">{c.label}</span>
+                    <span className="text-surface-400 text-xs">— {c.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
 
-  {
-    id: "r34",
-    title: "Les defis de l'integration en emploi",
-    level: "B2",
-    topic: "Immigration",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `La non-reconnaissance des qualifications etrangeres constitue l'un des obstacles les plus persistants a l'insertion professionnelle des immigrants au Quebec. Malgre des competences souvent equivalentes ou superieures a celles des candidats formes localement, de nombreux nouveaux arrivants se retrouvent contraints d'accepter des postes bien en dessous de leur niveau de qualification, un phenomene que les chercheurs nomment la dequalification professionnelle. Cette realite touche de maniere disproportionnee les immigrants issus de pays dont les systemes d'education sont moins familiers aux employeurs quebecois. Pour repondre a ce probleme, le gouvernement a mis sur pied des programmes de formation d'appoint et de mentorat, mais leur portee reste limitee face a l'ampleur du phenomene. Des etudes recentes demontrent que les immigrants qualifies prennent en moyenne cinq a sept ans avant d'atteindre un niveau salarial comparable a celui de leurs homologues canadiens de naissance, meme a competences egales.`,
-    questions: [
-      { id: "q1", question: "Qu'est-ce que la dequalification professionnelle ?", options: ["La perte de competences au fil du temps", "Le fait d'occuper un poste inferieur a sa qualification", "Le refus d'un emploi qualifie", "Un manque de formation academique"], correct_answer: 1, explanation: "Le texte definit la dequalification comme le fait d'accepter des postes 'bien en dessous de leur niveau de qualification'." },
-      { id: "q2", question: "Qui est le plus touche par ce phenomene ?", options: ["Les immigrants francophones", "Les immigrants de pays aux systemes d'education moins connus", "Les jeunes immigrants", "Les immigrants sans diplome"], correct_answer: 1, explanation: "Le texte dit 'touche de maniere disproportionee les immigrants issus de pays dont les systemes d'education sont moins familiers'." },
-      { id: "q3", question: "Quelles solutions le gouvernement a-t-il mises en place ?", options: ["Des subventions salariales", "Des programmes de formation d'appoint et de mentorat", "Des quotas d'embauche", "Des cours de francais obligatoires"], correct_answer: 1, explanation: "Le texte dit 'des programmes de formation d'appoint et de mentorat'." },
-      { id: "q4", question: "Combien de temps prend en moyenne l'alignement salarial ?", options: ["1 a 2 ans", "3 a 4 ans", "5 a 7 ans", "10 a 15 ans"], correct_answer: 2, explanation: "Le texte dit 'cinq a sept ans avant d'atteindre un niveau salarial comparable'." },
-      { id: "q5", question: "Quelle est la limite des solutions gouvernementales selon le texte ?", options: ["Elles sont trop couteuses", "Leur portee reste limitee face a l'ampleur du phenomene", "Elles sont mal connues des immigrants", "Elles ne couvrent que Montreal"], correct_answer: 1, explanation: "Le texte dit 'leur portee reste limitee face a l'ampleur du phenomene'." },
-    ],
-  },
-  {
-    id: "r35",
-    title: "La transformation du marche immobilier",
-    level: "B2",
-    topic: "Logement",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `Le marche immobilier quebecois a connu une acceleration sans precedent entre 2020 et 2023, principalement alimentee par des taux d'interet historiquement bas, une demande refoulee apres la pandemie et l'essor du teletravail qui a modifie les preferences residentielles. Les prix des proprietes dans la region de Montreal ont augmente de pres de 40% en trois ans, creant une fracture profonde entre proprietaires dont le patrimoine s'est considerablement accru et locataires qui subissent des hausses de loyer importantes sans beneficier de cette richesse. La hausse subsequente des taux d'interet par la Banque du Canada a commence a refroidir le marche, mais les prix demeurent a des niveaux historiquement eleves, rendant l'accession a la propriete inaccessible pour une large partie de la classe moyenne. Les jeunes menages sont particulierement desavantages, devant soit rester locataires indefiniment, soit s'eloigner des centres urbains pour acceder a la propriete.`,
-    questions: [
-      { id: "q1", question: "Quels facteurs ont accelere le marche immobilier entre 2020 et 2023 ?", options: ["Uniquement la speculation etrangere", "Taux bas, demande post-pandemie et teletravail", "L'immigration massive", "Les reformes gouvernementales"], correct_answer: 1, explanation: "Le texte cite 'des taux d'interet historiquement bas, une demande refoulee apres la pandemie et l'essor du teletravail'." },
-      { id: "q2", question: "De combien les prix ont-ils augmente dans la region de Montreal ?", options: ["20%", "30%", "40%", "50%"], correct_answer: 2, explanation: "Le texte dit 'Les prix des proprietes...ont augmente de pres de 40% en trois ans'." },
-      { id: "q3", question: "Quelle fracture sociale cette hausse a-t-elle creee ?", options: ["Entre immigrants et natifs", "Entre proprietaires enrichis et locataires penalises", "Entre jeunes et personnes agees", "Entre villes et campagnes"], correct_answer: 1, explanation: "Le texte dit 'une fracture profonde entre proprietaires dont le patrimoine s'est accru et locataires qui subissent des hausses'." },
-      { id: "q4", question: "Quel organisme a hausse les taux d'interet ?", options: ["Le gouvernement du Quebec", "La Caisse de depot", "La Banque du Canada", "Le FMI"], correct_answer: 2, explanation: "Le texte dit 'La hausse subsequente des taux d'interet par la Banque du Canada'." },
-      { id: "q5", question: "Quel groupe est particulierement desavantage ?", options: ["Les retraites", "Les travailleurs etrangers", "Les jeunes menages", "Les familles nombreuses"], correct_answer: 2, explanation: "Le texte dit 'Les jeunes menages sont particulierement desavantages'." },
-    ],
-  },
-  {
-    id: "r36",
-    title: "La sante numerique et ses limites",
-    level: "B2",
-    topic: "Sante",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `La pandemie de COVID-19 a agi comme catalyseur de la transformation numerique du systeme de sante quebecois, imposant en quelques semaines des changements qui auraient normalement pris des annees. La consultation medicale par videoconference, jusqu'alors marginale, est devenue routine pour des millions de patients. Les dossiers medicaux electroniques, deployes de maniere inegale depuis les annees 2000, ont connu une adoption acceleree. Si ces innovations ont indeniablement ameliore l'acces aux soins pour certains patients, notamment ceux vivant en regions eloignees ou ayant des difficultes de mobilite, elles ont aussi cree de nouvelles inegalites. Les personnes agees peu familieres avec la technologie, les personnes a faible revenu sans acces fiable a internet et les individus souffrant de troubles cognitifs rencontrent des barrieres significatives a ces nouveaux modes de consultation. La question de la fracture numerique en sante est devenue un enjeu de sante publique majeur.`,
-    questions: [
-      { id: "q1", question: "Quel evenement a accelere la transformation numerique de la sante ?", options: ["Une reforme gouvernementale", "La pandemie de COVID-19", "Une decision de la RAMQ", "Un accord federal-provincial"], correct_answer: 1, explanation: "Le texte dit 'La pandemie de COVID-19 a agi comme catalyseur de la transformation numerique'." },
-      { id: "q2", question: "Comment etait la consultation par videoconference avant la pandemie ?", options: ["Tres repandue", "Obligatoire", "Marginale", "Inexistante"], correct_answer: 2, explanation: "Le texte dit 'La consultation medicale par videoconference, jusqu'alors marginale'." },
-      { id: "q3", question: "Pour quels patients les innovations numeriques ont-elles ameliore l'acces ?", options: ["Uniquement les jeunes", "Ceux en regions eloignees ou avec difficultes de mobilite", "Uniquement les patients chroniques", "Seulement les patients prives"], correct_answer: 1, explanation: "Le texte dit 'ceux vivant en regions eloignees ou ayant des difficultes de mobilite'." },
-      { id: "q4", question: "Qui rencontre des barrieres avec ces nouvelles technologies ?", options: ["Les medecins de famille", "Les personnes agees, a faible revenu ou avec troubles cognitifs", "Les specialistes", "Les infirmieres"], correct_answer: 1, explanation: "Le texte enumere 'Les personnes agees peu familieres avec la technologie, les personnes a faible revenu...les individus souffrant de troubles cognitifs'." },
-      { id: "q5", question: "Comment qualifie-t-on le probleme d'inegalite numerique en sante ?", options: ["Un probleme mineur", "Un enjeu de sante publique majeur", "Un probleme temporaire", "Un phenomene international"], correct_answer: 1, explanation: "Le texte dit 'La question de la fracture numerique en sante est devenue un enjeu de sante publique majeur'." },
-    ],
-  },
-  {
-    id: "r37",
-    title: "Le debat sur l'energie nucleaire",
-    level: "B2",
-    topic: "Environnement",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `Dans le contexte de la crise climatique, le debat sur le recours a l'energie nucleaire pour decarboner l'economie quebecoise ressurgit avec une intensite nouvelle. Le Quebec possede une centrale nucleaire a Gentilly-2, fermee en 2012 pour des raisons economiques et de securite, dont le demantelement est en cours. La question de son eventuelle remise en service, ou de la construction de nouveaux petits reacteurs modulaires, suscite des avis tres partages. Les partisans du nucleaire font valoir son bilan carbone quasi nul et sa capacite a produire de l'electricite de maniere continue, contrairement aux energies solaire et eolienne. Ses adversaires soulignent les risques d'accidents, la question non resolue de la gestion des dechets radioactifs a long terme et les couts considerables de construction. Hydro-Quebec, disposant deja d'une capacite hydroelectrique abondante, a pour l'instant ecarte cette option dans sa planification strategique.`,
-    questions: [
-      { id: "q1", question: "Pourquoi Gentilly-2 a-t-elle ete fermee en 2012 ?", options: ["Suite a un accident nucleaire", "Pour des raisons economiques et de securite", "En raison d'une decision federale", "A cause de manifestations citoyennes"], correct_answer: 1, explanation: "Le texte dit 'fermee en 2012 pour des raisons economiques et de securite'." },
-      { id: "q2", question: "Qu'est-ce qu'un petit reacteur modulaire ?", options: ["Un generateur d'urgence", "Un type de reacteur nucleaire de petite taille", "Un transformateur electrique", "Un panneau solaire avance"], correct_answer: 1, explanation: "Le texte mentionne 'la construction de nouveaux petits reacteurs modulaires' comme alternative au nucleaire classique." },
-      { id: "q3", question: "Quel avantage du nucleaire les partisans mettent-ils en avant ?", options: ["Son faible cout de construction", "Son bilan carbone quasi nul et sa production continue", "Sa technologie tres maitrisee", "Son faible impact sur les paysages"], correct_answer: 1, explanation: "Le texte dit 'son bilan carbone quasi nul et sa capacite a produire de l'electricite de maniere continue'." },
-      { id: "q4", question: "Quelle critique majeure est faite contre le nucleaire ?", options: ["Sa dependance aux combustibles fossiles", "La question non resolue de la gestion des dechets radioactifs", "Son manque de rentabilite energetique", "Sa necessite d'eau douce"], correct_answer: 1, explanation: "Le texte cite 'la question non resolue de la gestion des dechets radioactifs a long terme'." },
-      { id: "q5", question: "Quelle est la position actuelle d'Hydro-Quebec sur le nucleaire ?", options: ["Elle le considere comme prioritaire", "Elle l'a ecarte de sa planification strategique", "Elle est neutre sur la question", "Elle le developpe secretement"], correct_answer: 1, explanation: "Le texte dit 'Hydro-Quebec...a pour l'instant ecarte cette option dans sa planification strategique'." },
-    ],
-  },
-  {
-    id: "r38",
-    title: "La diversite dans les milieux professionnels",
-    level: "B2",
-    topic: "Travail",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `La diversite en milieu de travail est devenue une priorite dans le discours des organisations quebecoises, mais la distance entre les declarations d'intention et les pratiques concretes reste souvent considerable. Des etudes revealent que, a competences egales, les candidats portant un nom a consonance etrangere ont statistiquement moins de chances d'obtenir une entrevue que leurs homologues aux noms d'origine quebecoise. Cette discrimination a l'embauche, souvent inconsciente, est renforcee par des biais cognitifs systemiques difficiles a corriger. Certaines entreprises ont adopte le recrutement anonyme, qui consiste a masquer le nom et l'origine du candidat lors du premier tri des candidatures, avec des resultats encourageants. La Commission des droits de la personne et des droits de la jeunesse du Quebec recoit chaque annee des centaines de plaintes pour discrimination a l'emploi, revelant l'ampleur du probleme.`,
-    questions: [
-      { id: "q1", question: "Quel ecart le texte souligne-t-il dans les organisations quebecoises ?", options: ["Entre secteur public et prive", "Entre declarations d'intention et pratiques concretes", "Entre grandes et petites entreprises", "Entre Montreal et les regions"], correct_answer: 1, explanation: "Le texte dit 'la distance entre les declarations d'intention et les pratiques concretes reste souvent considerable'." },
-      { id: "q2", question: "Que revelent les etudes sur les candidats a nom etranger ?", options: ["Ils sont mieux payes", "Ils ont moins de chances d'obtenir une entrevue", "Ils sont plus diplomes", "Ils restent plus longtemps en poste"], correct_answer: 1, explanation: "Le texte dit 'les candidats portant un nom a consonance etrangere ont statistiquement moins de chances d'obtenir une entrevue'." },
-      { id: "q3", question: "Comment est qualifiee la discrimination a l'embauche ?", options: ["Volontaire et organisee", "Souvent inconsciente et liee a des biais systemiques", "Rare et marginale", "Uniquement dans certains secteurs"], correct_answer: 1, explanation: "Le texte dit 'discrimination a l'embauche, souvent inconsciente, est renforcee par des biais cognitifs systemiques'." },
-      { id: "q4", question: "En quoi consiste le recrutement anonyme ?", options: ["A recruter sans entrevue", "A masquer le nom et l'origine du candidat lors du tri", "A recruter uniquement en ligne", "A utiliser des tests de competences uniquement"], correct_answer: 1, explanation: "Le texte dit 'consiste a masquer le nom et l'origine du candidat lors du premier tri des candidatures'." },
-      { id: "q5", question: "Quel organisme recoit les plaintes pour discrimination a l'emploi ?", options: ["Le Ministere du Travail", "La Cour superieure", "La Commission des droits de la personne et des droits de la jeunesse", "Emploi-Quebec"], correct_answer: 2, explanation: "Le texte dit 'La Commission des droits de la personne et des droits de la jeunesse du Quebec recoit chaque annee des centaines de plaintes'." },
-    ],
-  },
-  {
-    id: "r39",
-    title: "L'enseignement superieur a l'ere numerique",
-    level: "B2",
-    topic: "Education",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `L'emergence des technologies numeriques a profondement transforme les pratiques pedagogiques dans les universites quebecoises. L'enseignement hybride, combinant cours en presentiel et apprentissage en ligne, s'est impose comme un nouveau standard, accelere par les contraintes sanitaires de la pandemie. Si cette transformation a elargi l'acces a l'education superieure pour des populations autrefois exclues, comme les travailleurs a temps plein ou les personnes vivant en regions, elle souleve aussi des questions fondamentales sur la qualite de l'experience universitaire. Des recherches pedagogiques suggerent que l'interaction directe entre etudiants et professeurs, ainsi que les dynamiques sociales de la vie sur campus, jouent un role crucial dans le developpement des competences relationnelles et de la pensee critique. La proliferation des outils d'intelligence artificielle generative, qui permettent de rediger des travaux academiques quasi instantanement, pousse les etablissements a repenser completement leurs methodes d'evaluation.`,
-    questions: [
-      { id: "q1", question: "Comment l'enseignement hybride a-t-il ete accelere ?", options: ["Par une reforme ministerielle", "Par les contraintes sanitaires de la pandemie", "Par une demande etudiante", "Par des investissements prives"], correct_answer: 1, explanation: "Le texte dit 'accelere par les contraintes sanitaires de la pandemie'." },
-      { id: "q2", question: "Pour quelles populations l'enseignement numerique a-t-il elargi l'acces ?", options: ["Les etudiants etrangers seulement", "Les travailleurs a temps plein et personnes en regions", "Les etudiants a faible revenu", "Les etudiants handicapes"], correct_answer: 1, explanation: "Le texte dit 'des travailleurs a temps plein ou les personnes vivant en regions'." },
-      { id: "q3", question: "Quel role joue la vie sur campus selon les recherches ?", options: ["Un role purement social", "Crucial pour les competences relationnelles et la pensee critique", "Negligeable pour la reussite academique", "Important uniquement pour les sciences"], correct_answer: 1, explanation: "Le texte dit 'jouent un role crucial dans le developpement des competences relationnelles et de la pensee critique'." },
-      { id: "q4", question: "Quel probleme l'IA generative pose-t-elle aux universites ?", options: ["Elle remplace les professeurs", "Elle permet de rediger des travaux quasi instantanement", "Elle coute trop cher", "Elle ne fonctionne qu'en anglais"], correct_answer: 1, explanation: "Le texte dit 'des outils d'intelligence artificielle generative, qui permettent de rediger des travaux academiques quasi instantanement'." },
-      { id: "q5", question: "Que doivent repenser les etablissements face a l'IA ?", options: ["Leurs programmes d'etudes", "Leurs methodes d'evaluation", "Leurs politiques d'admission", "Leurs budgets de recherche"], correct_answer: 1, explanation: "Le texte dit 'pousse les etablissements a repenser completement leurs methodes d'evaluation'." },
-    ],
-  },
-  {
-    id: "r40",
-    title: "Les enjeux de la reconciliation autochtone",
-    level: "B2",
-    topic: "Societe",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `La reconciliation avec les peuples autochtones constitue l'un des defis moraux et politiques les plus complexes du Canada contemporain. La Commission de verite et reconciliation du Canada, qui a publie son rapport final en 2015, a documente les traumatismes intergenerationnels causes par le systeme des pensionnats indiens, ou des dizaines de milliers d'enfants autochtones ont ete arraches a leurs familles et soumis a des politiques d'assimilation forcee. Les 94 appels a l'action formules par la Commission couvrent des domaines aussi varies que la justice, la sante, l'education et les institutions gouvernementales. La mise en oeuvre de ces recommandations progresse lentement, confrontee aux resistances institutionnelles et au manque de volonte politique. Au Quebec, les relations avec les Premieres Nations, les Metis et les Inuit se jouent dans un contexte particulier, marque par des negociations sur l'autonomie gouvernementale et la gestion des ressources naturelles sur les territoires ancestraux.`,
-    questions: [
-      { id: "q1", question: "Quand la Commission de verite et reconciliation a-t-elle publie son rapport ?", options: ["2010", "2013", "2015", "2018"], correct_answer: 2, explanation: "Le texte dit 'qui a publie son rapport final en 2015'." },
-      { id: "q2", question: "Qu'etaient les pensionnats indiens ?", options: ["Des ecoles culturelles autochtones", "Des lieux d'assimilation forcee des enfants autochtones", "Des refuges pour enfants orphelins", "Des centres de formation professionnelle"], correct_answer: 1, explanation: "Le texte decrit des enfants 'arraches a leurs familles et soumis a des politiques d'assimilation forcee'." },
-      { id: "q3", question: "Combien d'appels a l'action la Commission a-t-elle formules ?", options: ["54", "74", "94", "114"], correct_answer: 2, explanation: "Le texte dit 'Les 94 appels a l'action'." },
-      { id: "q4", question: "Comment progresse la mise en oeuvre des recommandations ?", options: ["Rapidement et completement", "A un rythme satisfaisant", "Lentement, confrontee aux resistances", "Elle est totalement bloquee"], correct_answer: 2, explanation: "Le texte dit 'La mise en oeuvre...progresse lentement, confrontee aux resistances institutionnelles'." },
-      { id: "q5", question: "Quels sont les enjeux particuliers au Quebec concernant les Autochtones ?", options: ["L'enseignement des langues autochtones", "L'autonomie gouvernementale et la gestion des ressources naturelles", "L'acces aux soins de sante", "L'indemnisation financiere des victimes"], correct_answer: 1, explanation: "Le texte dit 'des negociations sur l'autonomie gouvernementale et la gestion des ressources naturelles sur les territoires ancestraux'." },
-    ],
-  },
-  {
-    id: "r41",
-    title: "La culture quebecoise a l'international",
-    level: "B2",
-    topic: "Culture",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `Le rayonnement de la culture quebecoise a l'echelle internationale est un phenomene remarquable compte tenu de la taille relative de la province. Le cirque contemporain, dont le Cirque du Soleil est l'ambassadeur le plus celebre, le cinema d'auteur avec des realisateurs comme Denis Villeneuve ou Xavier Dolan, la chanson francophone portee par des artistes comme Coeur de pirate et la litterature avec des auteurs tels que Kim Thuy ou Dany Laferriere ont acquis une visibilite mondiale. Cette diffusion culturelle ne se fait pas sans tensions : la question des droits d'auteur a l'ere numerique, la competition avec les contenus anglophones sur les plateformes mondiales et le financement de la creation artistique face a la fragmentation des revenus traditionnels sont autant de defis contemporains. Le gouvernement du Quebec investit dans la promotion de sa culture a l'etranger via des bureaux comme la Delegation generale du Quebec a Paris ou la Maison du Quebec a Londres.`,
-    questions: [
-      { id: "q1", question: "Quel cirque quebecois est mentionne comme ambassadeur culturel ?", options: ["Le Grand Cirque", "Le Cirque Eloize", "Le Cirque du Soleil", "Les 7 Doigts"], correct_answer: 2, explanation: "Le texte dit 'le Cirque du Soleil est l'ambassadeur le plus celebre'." },
-      { id: "q2", question: "Quel realisateur quebecois est cite ?", options: ["Jean-Marc Vallee uniquement", "Denis Villeneuve ou Xavier Dolan", "Claude Jutra", "Jean Beaudin"], correct_answer: 1, explanation: "Le texte cite 'Denis Villeneuve ou Xavier Dolan'." },
-      { id: "q3", question: "Quel defi numerique est mentionne ?", options: ["Le cout des equipements numeriques", "La competition avec les contenus anglophones sur les plateformes mondiales", "Le manque de createurs numeriques", "L'absence de plateformes quebecoises"], correct_answer: 1, explanation: "Le texte dit 'la competition avec les contenus anglophones sur les plateformes mondiales'." },
-      { id: "q4", question: "Quelle auteure est mentionnee dans le texte ?", options: ["Anne Hebert", "Marie-Claire Blais", "Kim Thuy", "Gabrielle Roy"], correct_answer: 2, explanation: "Le texte cite 'Kim Thuy ou Dany Laferriere'." },
-      { id: "q5", question: "Comment le Quebec promeut-il sa culture a l'etranger ?", options: ["Via des festivals uniquement", "Via des bureaux comme la Delegation generale a Paris", "Par des exportations commerciales", "Via des ambassades canadiennes"], correct_answer: 1, explanation: "Le texte dit 'via des bureaux comme la Delegation generale du Quebec a Paris'." },
-    ],
-  },
-  {
-    id: "r42",
-    title: "Le vieillissement de la population active",
-    level: "B2",
-    topic: "Travail",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `Le vieillissement accelere de la population active quebecoise cree des tensions structurelles sur le marche du travail qui ne peuvent etre resolues uniquement par l'immigration. Avec la retraite massive des baby-boomers, le Quebec fait face simultanement a une penurie de main-d'oeuvre dans plusieurs secteurs et a une pression croissante sur les systemes de retraite et de sante. Pour repondre a ces defis, des politiques incitatives ont ete mises en place pour encourager le maintien en emploi des travailleurs de 60 ans et plus, notamment des credits d'impot bonifies et des modalites de travail flexibles. Les entreprises sont encouragees a developper des pratiques de gestion intergenerationnelle qui valorisent le transfert de connaissances entre travailleurs d'experience et nouvelles recrues. La question de la retraite graduelle, permettant aux seniors de reduire progressivement leur charge de travail tout en conservant leurs droits a la retraite, gagne en popularite comme solution conciliatoire.`,
-    questions: [
-      { id: "q1", question: "Quel phenomene demographique cree des tensions sur le marche du travail ?", options: ["L'emigration des jeunes", "Le vieillissement accelere de la population active", "La baisse de natalite uniquement", "L'immigration excessive"], correct_answer: 1, explanation: "Le texte dit 'Le vieillissement accelere de la population active quebecoise cree des tensions structurelles'." },
-      { id: "q2", question: "Pourquoi les baby-boomers partent-ils a la retraite massivement ?", options: ["A cause des reformes gouvernementales", "Ils atteignent l'age de la retraite simultanement", "En raison d'incitations financieres speciales", "Par choix personnel"], correct_answer: 1, explanation: "Le texte fait reference au 'depart massif a la retraite des baby-boomers', une generation nombreuse atteignant l'age de la retraite." },
-      { id: "q3", question: "Quelles politiques encouragent les seniors a rester en emploi ?", options: ["Des salaires minimums eleves", "Des credits d'impot bonifies et des modalites flexibles", "Des formations obligatoires", "Des contrats a duree determinee"], correct_answer: 1, explanation: "Le texte dit 'des credits d'impot bonifies et des modalites de travail flexibles'." },
-      { id: "q4", question: "En quoi consiste la gestion intergenerationnelle ?", options: ["A separer les generations dans le travail", "A valoriser le transfert de connaissances entre travailleurs d'experience et nouvelles recrues", "A privilegier les jeunes diplomes", "A former les seniors aux nouvelles technologies"], correct_answer: 1, explanation: "Le texte dit 'valorisent le transfert de connaissances entre travailleurs d'experience et nouvelles recrues'." },
-      { id: "q5", question: "Qu'est-ce que la retraite graduelle permet ?", options: ["De prendre sa retraite a 55 ans", "De reduire progressivement la charge de travail tout en conservant ses droits", "De cumuler retraite et salaire plein", "D'obtenir une pension double"], correct_answer: 1, explanation: "Le texte dit 'permettant aux seniors de reduire progressivement leur charge de travail tout en conservant leurs droits a la retraite'." },
-    ],
-  },
-  {
-    id: "r43",
-    title: "La gouvernance des donnees de sante",
-    level: "B2",
-    topic: "Technologie",
-    time_limit: 720,
-    created_at: new Date().toISOString(),
-    text: `La numerisation massive des dossiers medicaux au Quebec cree des opportunites sans precedent pour la recherche en sante et l'optimisation des soins, mais souleve simultanement des enjeux complexes de protection de la vie privee et de gouvernance des donnees. Le dossier sante Quebec, plateforme centralisee permettant aux professionnels de la sante d'acceder aux informations medicales de leurs patients, a transforme la coordination des soins mais a aussi ete la cible de cyberattaques. La question de savoir qui peut acceder a ces donnees sensibles, dans quelles conditions et a quelles fins est au coeur d'un debat qui oppose les partisans de l'open data en sante au nom de la recherche scientifique aux defenseurs d'une protection stricte de la confidentialite medicale. Les entreprises technologiques, notamment des geants comme Google et Microsoft, manifestent un interet croissant pour les donnees de sante, ouvrant des perspectives commerciales qui inquietent les defenseurs des droits des patients.`,
-    questions: [
-      { id: "q1", question: "Quelle plateforme centralise les dossiers medicaux au Quebec ?", options: ["Sante en ligne", "Mon dossier sante", "Le dossier sante Quebec", "eSante Quebec"], correct_answer: 2, explanation: "Le texte dit 'Le dossier sante Quebec, plateforme centralisee'." },
-      { id: "q2", question: "Quel probleme de securite cette plateforme a-t-elle connu ?", options: ["Des pannes frequentes", "Des cyberattaques", "Des erreurs de donnees", "Des acces non autorises par des medecins"], correct_answer: 1, explanation: "Le texte dit 'a aussi ete la cible de cyberattaques'." },
-      { id: "q3", question: "Quel debat central souleve la numerisation des dossiers ?", options: ["Le cout de la numerisation", "Qui peut acceder aux donnees, dans quelles conditions et a quelles fins", "La qualite des donnees collectees", "La competence des techniciens"], correct_answer: 1, explanation: "Le texte dit 'La question de savoir qui peut acceder a ces donnees sensibles, dans quelles conditions et a quelles fins'." },
-      { id: "q4", question: "Que veulent les partisans de l'open data en sante ?", options: ["Proteger strictement les donnees", "Partager les donnees au nom de la recherche scientifique", "Vendre les donnees aux entreprises", "Limiter l'acces aux medecins"], correct_answer: 1, explanation: "Le texte dit 'les partisans de l'open data en sante au nom de la recherche scientifique'." },
-      { id: "q5", question: "Pourquoi l'interet des geants technologiques pour les donnees de sante inquiete-t-il ?", options: ["Parce qu'ils sont etrangers", "A cause des perspectives commerciales qui inquietent les defenseurs des droits des patients", "Parce que leurs technologies sont instables", "Parce qu'ils sont en competition avec l'Etat"], correct_answer: 1, explanation: "Le texte dit 'des perspectives commerciales qui inquietent les defenseurs des droits des patients'." },
-    ],
-  },
-  {
-    id: "r44",
-    title: "L'erosion de la confiance institutionnelle",
-    level: "C1",
-    topic: "Societe",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `Le phenomene de defiance envers les institutions politiques, mediatiques et scientifiques que l'on observe dans les democraties liberales contemporaines prend au Quebec une forme particuliere, nourrie par des tensions historiques specifiques. Si le scepticisme envers les institutions a toujours ete present dans les societes democratiques, sa manifestation contemporaine se distingue par sa profondeur, sa transversalite sociale et son amplification algorithmique. Des enquetes sociologiques recentes montrent qu'une majorite de Quebecois exprime une mefiance croissante envers les partis politiques, les grands medias et les experts, tout en maintenant une confiance relative dans les institutions de proximite comme les ecoles, les hopitaux et les municipalites. Ce paradoxe – defiance des institutions nationales, confiance dans les institutions locales – suggere que le probleme n'est pas l'institution en soi mais son eloignement percu d'une realite vecue. La reconstruction de la confiance exige non seulement de meilleures communications institutionnelles, mais une refonte profonde des modes de participation citoyenne et de prise de decision.`,
-    questions: [
-      { id: "q1", question: "Comment la defiance contemporaine se distingue-t-elle du scepticisme traditionnel ?", options: ["Elle est moins repandue", "Par sa profondeur, transversalite sociale et amplification algorithmique", "Elle cible uniquement les politiciens", "Elle est plus episodique"], correct_answer: 1, explanation: "Le texte dit 'se distingue par sa profondeur, sa transversalite sociale et son amplification algorithmique'." },
-      { id: "q2", question: "Quel paradoxe les enquetes reveulent-elles concernant la confiance ?", options: ["Confiance en l'etranger, defiance du local", "Defiance des institutions nationales mais confiance dans les institutions locales", "Confiance dans les experts mais defiance des politiciens", "Confiance des jeunes mais defiance des personnes agees"], correct_answer: 1, explanation: "Le texte dit 'defiance des institutions nationales, confiance dans les institutions locales'." },
-      { id: "q3", question: "Selon le texte, quelle est la cause probable de ce paradoxe ?", options: ["La mauvaise gestion des institutions nationales", "L'eloignement percu des institutions de la realite vecue", "La corruption des gouvernements", "Les medias negatifs"], correct_answer: 1, explanation: "Le texte dit 'le probleme n'est pas l'institution en soi mais son eloignement percu d'une realite vecue'." },
-      { id: "q4", question: "Que suggerent les enquetes sur les institutions auxquelles les Quebecois font encore confiance ?", options: ["Les partis politiques", "Les grands medias", "Les ecoles, hopitaux et municipalites", "Les experts scientifiques"], correct_answer: 2, explanation: "Le texte dit 'une confiance relative dans les institutions de proximite comme les ecoles, les hopitaux et les municipalites'." },
-      { id: "q5", question: "Que requiert la reconstruction de la confiance selon le texte ?", options: ["Uniquement de meilleures communications", "De meilleures communications ET une refonte des modes de participation", "Des sanctions contre la desinformation", "Un changement de dirigeants politiques"], correct_answer: 1, explanation: "Le texte dit 'non seulement de meilleures communications institutionnelles, mais une refonte profonde des modes de participation citoyenne'." },
-    ],
-  },
-  {
-    id: "r45",
-    title: "L'economie de plateforme et le droit du travail",
-    level: "C1",
-    topic: "Travail",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `L'emergence de l'economie de plateforme souleve des questions fondamentales sur la nature du contrat de travail et les categories juridiques qui le structurent, questions auxquelles les legislateurs quebecois et canadiens peinent encore a apporter des reponses satisfaisantes. La dichotomie traditionnelle entre salarie, titulaire de l'ensemble des protections du droit du travail, et travailleur autonome, entrepreneur de sa propre activite, s'avere inadequate pour apprehender la realite des travailleurs de plateforme, qui se trouvent dans une situation hybride : ils disposent d'une flexibilite formelle mais subissent une dependance economique et algorithmique considerable. Plusieurs juridictions ont tente d'introduire une troisieme categorie intermediaire, le 'travailleur de plateforme' ou le 'travailleur dependent', assortie de protections specifiques. La resistance des entreprises de plateforme a toute requalification de leurs travailleurs en salaries, au motif que cela detruirait leur modele d'affaires, illustre la tension fondamentale entre les impératifs d'adaptation du droit social et les exigences de la competitivite economique dans un environnement mondialisé.`,
-    questions: [
-      { id: "q1", question: "Pourquoi la dichotomie salarie/travailleur autonome est-elle inadequate ?", options: ["Elle est trop complexe pour les juges", "Elle ne correspond pas a la situation hybride des travailleurs de plateforme", "Elle est trop couteuse a appliquer", "Elle n'existe pas en droit quebecois"], correct_answer: 1, explanation: "Le texte dit 's'avere inadequate pour apprehender la realite des travailleurs de plateforme, qui se trouvent dans une situation hybride'." },
-      { id: "q2", question: "Quelle flexibilite ont les travailleurs de plateforme selon le texte ?", options: ["Une flexibilite reelle et totale", "Une flexibilite formelle malgre une dependance economique et algorithmique", "Aucune flexibilite", "Une flexibilite uniquement horaire"], correct_answer: 1, explanation: "Le texte dit 'ils disposent d'une flexibilite formelle mais subissent une dependance economique et algorithmique considerable'." },
-      { id: "q3", question: "Quelle solution certaines juridictions ont-elles tentee ?", options: ["D'interdire les plateformes", "D'introduire une troisieme categorie de travailleur", "De taxer davantage les plateformes", "De privatiser la protection sociale"], correct_answer: 1, explanation: "Le texte dit 'Plusieurs juridictions ont tente d'introduire une troisieme categorie intermediaire'." },
-      { id: "q4", question: "Pourquoi les entreprises de plateforme resistent-elles a la requalification ?", options: ["Par crainte de la concurrence", "Parce que cela detruirait leur modele d'affaires", "Pour des raisons culturelles", "A cause de la legislation internationale"], correct_answer: 1, explanation: "Le texte dit 'au motif que cela detruirait leur modele d'affaires'." },
-      { id: "q5", question: "Quelle tension fondamentale le texte illustre-t-il ?", options: ["Entre travail qualifie et non qualifie", "Entre adaptation du droit social et competitivite economique mondialisee", "Entre secteur public et prive", "Entre provinces canadiennes"], correct_answer: 1, explanation: "Le texte dit 'la tension fondamentale entre les imperatifs d'adaptation du droit social et les exigences de la competitivite economique dans un environnement mondialise'." },
-    ],
-  },
-  {
-    id: "r46",
-    title: "Le nationalisme civique et ses paradoxes",
-    level: "C1",
-    topic: "Politique",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `Le nationalisme quebecois contemporain se presente volontiers sous la forme d'un nationalisme civique, fonde sur l'adhesion a des valeurs et a une culture commune plutot que sur l'appartenance ethnique ou la descendance. Cette conception inclusive entend integrer dans la nation quebecoise toute personne qui habite le territoire, partage la langue francaise et souscrit aux valeurs communes. Cependant, des tensions emergeant regulierement au coeur de ce projet revelent ses contradictions internes. Les debats sur la laicite, les accommodements raisonnables et la place des religions minoritaires dans l'espace public mettent a l'epreuve la rhetorique inclusive du nationalisme civique, suggerant que certaines cultures et pratiques sont implicitement jugees moins compatibles avec les valeurs quebecoises que d'autres. Des sociologues comme Gerard Bouchard ont tente de theoriser une forme d'interculturalisme specifiquement quebecoise qui reconcilierait l'imperatif de cohesion culturelle avec le respect de la diversite, mais ce projet reste politiquement conteste.`,
-    questions: [
-      { id: "q1", question: "Sur quoi se fonde le nationalisme civique quebecois ?", options: ["L'appartenance ethnique et la descendance", "L'adhesion a des valeurs et une culture commune", "La maitrise parfaite du francais acadamique", "La naissance sur le territoire quebecois"], correct_answer: 1, explanation: "Le texte dit 'fonde sur l'adhesion a des valeurs et a une culture commune plutot que sur l'appartenance ethnique'." },
-      { id: "q2", question: "Quels debats revealent les contradictions du nationalisme civique ?", options: ["Les debats economiques et fiscaux", "Les debats sur la laicite, les accommodements et les religions minoritaires", "Les debats sur l'immigration economique", "Les debats sur la souverainete"], correct_answer: 1, explanation: "Le texte dit 'Les debats sur la laicite, les accommodements raisonnables et la place des religions minoritaires'." },
-      { id: "q3", question: "Quelle implication est suggere par ces debats ?", options: ["Toutes les cultures sont egalement valorisees", "Certaines cultures sont jugees moins compatibles avec les valeurs quebecoises", "Le nationalisme civique fonctionne parfaitement", "La laicite est universellement acceptee"], correct_answer: 1, explanation: "Le texte dit 'certaines cultures et pratiques sont implicitement jugees moins compatibles avec les valeurs quebecoises que d'autres'." },
-      { id: "q4", question: "Qu'est-ce que Gerard Bouchard a tente de theoriser ?", options: ["Une forme de nationalisme exclusif", "Un interculturalisme specifiquement quebecois", "Le multiculturalisme canadien au Quebec", "Une theorie de l'assimilation"], correct_answer: 1, explanation: "Le texte dit 'Gerard Bouchard...ont tente de theoriser une forme d'interculturalisme specifiquement quebecoise'." },
-      { id: "q5", question: "Comment le projet de Bouchard est-il qualifie ?", options: ["Largement accepte", "Politiquement conteste", "Officiellement adopte", "Abandonné"], correct_answer: 1, explanation: "Le texte dit 'ce projet reste politiquement conteste'." },
-    ],
-  },
-  {
-    id: "r47",
-    title: "La bioethique face aux avancees genetiques",
-    level: "C1",
-    topic: "Sante",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `Les avancees spectaculaires de la genetique et des biotechnologies placent les societes contemporaines devant des dilemmes ethiques sans precedent historique, pour lesquels les cadres moraux traditionnels fournissent des guides imparfaits. Le sequencage du genome humain et l'avènement des techniques de modification genetique comme CRISPR-Cas9 ouvrent la perspective d'eliminer des maladies hereditaires graves, mais aussi de modifier des caracteristiques non pathologiques de l'espece humaine, voire d'introduire des ameliorations enhantantes qui brouillent la frontiere entre le soin et l'augmentation humaine. Au Quebec comme dans les autres societes avancees, ces questions sont confiees a des comites de bioethique qui tentent de baliser les pratiques dans un environnement ou la technologie evolue plus rapidement que la reflexion normative. La question du consentement des generations futures, qui ne peuvent pas etre consultees sur les modifications genetiques qui les concernent, constitue le noeud conceptuel le plus difficile a resoudre dans ce debat.`,
-    questions: [
-      { id: "q1", question: "Pourquoi les cadres moraux traditionnels sont-ils insuffisants face aux avancees genetiques ?", options: ["Ils sont trop anciens", "Ils fournissent des guides imparfaits face a des dilemmes sans precedent historique", "Ils sont bases sur des religions obsoletes", "Ils n'existent pas dans ce domaine"], correct_answer: 1, explanation: "Le texte dit 'les cadres moraux traditionnels fournissent des guides imparfaits' face a des 'dilemmes ethiques sans precedent historique'." },
-      { id: "q2", question: "Qu'est-ce que CRISPR-Cas9 ?", options: ["Un medicament genetique", "Une technique de modification genetique", "Un sequenceur du genome", "Un virus modifie en laboratoire"], correct_answer: 1, explanation: "Le texte cite 'les techniques de modification genetique comme CRISPR-Cas9'." },
-      { id: "q3", question: "Quelle distinction le texte souligne-t-il comme menacee ?", options: ["Entre medecine publique et privee", "Entre la frontiere du soin et de l'augmentation humaine", "Entre la genetique humaine et animale", "Entre la recherche fondamentale et appliquee"], correct_answer: 1, explanation: "Le texte dit 'modifications...qui brouillent la frontiere entre le soin et l'augmentation humaine'." },
-      { id: "q4", question: "A qui confie-t-on ces questions ethiques au Quebec ?", options: ["Au gouvernement directement", "Aux comites de bioethique", "Aux religieux", "Aux scientifiques uniquement"], correct_answer: 1, explanation: "Le texte dit 'ces questions sont confiees a des comites de bioethique'." },
-      { id: "q5", question: "Quel est le noeud conceptuel le plus difficile selon le texte ?", options: ["Le cout des technologies genetiques", "Le consentement des generations futures non consultables", "L'acces inegal aux techniques genetiques", "La propriete intellectuelle des decouvertes genetiques"], correct_answer: 1, explanation: "Le texte dit 'La question du consentement des generations futures...constitue le noeud conceptuel le plus difficile'." },
-    ],
-  },
-  {
-    id: "r48",
-    title: "La philosophie de l'education democratique",
-    level: "C1",
-    topic: "Education",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `L'education democratique, au sens ou John Dewey l'entendait au tournant du XXe siecle, reste une aspiration plus qu'une realite dans les systemes scolaires contemporains, y compris au Quebec. L'ecole quebecoise, malgre ses reformes successives, oscille entre deux conceptions antagonistes de sa mission : une conception instrumentale qui en fait un lieu de formation de la main-d'oeuvre adaptee aux besoins de l'economie, et une conception emancipatrice qui vise a former des citoyens critiques capables de deliberer democratiquement. Cette tension se manifeste dans les debats curriculaires : la place accordee aux arts, aux humanites et a la philosophie dans les programmes scolaires est regulierement contestee au profit de disciplines jugees plus directement utiles comme les mathematiques, les sciences et les technologies. Paradoxalement, les recherches en sciences de l'education montrent que les competences dites 'molles' – esprit critique, communication, empathie, creativite – sont precisement celles que les employeurs et les societes democratiques valorisent le plus, mais que le systeme educatif peine a developper systematiquement.`,
-    questions: [
-      { id: "q1", question: "Quelles sont les deux conceptions antagonistes de l'ecole selon le texte ?", options: ["Publique et privee", "Instrumentale (formation economique) et emancipatrice (citoyens critiques)", "Traditionnelle et moderne", "Rurale et urbaine"], correct_answer: 1, explanation: "Le texte dit 'une conception instrumentale...et une conception emancipatrice qui vise a former des citoyens critiques'." },
-      { id: "q2", question: "Au profit de quoi la place des arts est-elle contestee ?", options: ["Du sport et des loisirs", "Des disciplines comme mathematiques, sciences et technologies", "Des langues etrangeres", "Des cours d'education civique"], correct_answer: 1, explanation: "Le texte dit 'au profit de disciplines jugees plus directement utiles comme les mathematiques, les sciences et les technologies'." },
-      { id: "q3", question: "Quel penseur est cite comme reference de l'education democratique ?", options: ["Jean-Jacques Rousseau", "Emile Durkheim", "John Dewey", "Paulo Freire"], correct_answer: 2, explanation: "Le texte dit 'au sens ou John Dewey l'entendait'." },
-      { id: "q4", question: "Que revelent les recherches en sciences de l'education sur les competences 'molles' ?", options: ["Elles sont inutiles dans l'economie actuelle", "Elles sont les plus valorisees par les employeurs et les societes democratiques", "Elles sont faciles a developper", "Elles sont uniquement pertinentes pour les arts"], correct_answer: 1, explanation: "Le texte dit 'les competences dites molles...sont precisement celles que les employeurs et les societes democratiques valorisent le plus'." },
-      { id: "q5", question: "Quel paradoxe central le texte souligne-t-il ?", options: ["Le systeme valorise ce qu'il n'enseigne pas systematiquement", "Les professeurs valorisent l'art mais enseignent les sciences", "Les eleves preferent les humanites aux sciences", "Le gouvernement finance ce dont personne ne veut"], correct_answer: 0, explanation: "Le texte dit 'les competences dites molles...que les employeurs valorisent le plus, mais que le systeme educatif peine a developper systematiquement'." },
-    ],
-  },
-  {
-    id: "r49",
-    title: "Les commons numeriques et la gouvernance democratique",
-    level: "C1",
-    topic: "Technologie",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `La concentration oligopolistique du pouvoir numerique entre les mains de quelques plateformes transnationales souleve, pour les democraties comme le Quebec, une question de gouvernance dont les implications depassent largement la seule regulation economique. Ces plateformes ne sont plus simplement des intermediaires commerciaux : elles structurent l'espace public, conditionnent les conditions de la deliberation democratique et exercent un pouvoir de moderation qui equivaut a celui d'Etats. La theorie des 'communs numeriques', inspiree des travaux d'Elinor Ostrom sur la gouvernance des ressources communes, propose d'apprehender certaines infrastructures numeriques - les donnees, les algorithmes, les reseaux de communication - comme des biens communs devant etre soumis a des regimes de gouvernance collective et democratique plutot qu'aux seules logiques du marche prive. Des villes comme Barcelona et, dans une moindre mesure, Montreal ont experimente des approches de souverainete numerique locale. Ces initiatives, prometteuses dans leur conception, se heurtent cependant a la puissance des ecosystemes proprietaires mondiaux, revelant les limites de l'action politique locale dans un espace numerique globalement defini.`,
-    questions: [
-      { id: "q1", question: "Quel pouvoir les grandes plateformes exercent-elles selon le texte ?", options: ["Un pouvoir uniquement commercial", "Un pouvoir de moderation equivalent a celui d'Etats", "Un pouvoir culturel uniquement", "Un pouvoir economique regionaux"], correct_answer: 1, explanation: "Le texte dit 'exercent un pouvoir de moderation qui equivaut a celui d'Etats'." },
-      { id: "q2", question: "Sur quels travaux la theorie des communs numeriques s'inspire-t-elle ?", options: ["Les travaux de Karl Marx", "Les travaux d'Elinor Ostrom sur les ressources communes", "Les travaux de John Rawls", "Les travaux de Milton Friedman"], correct_answer: 1, explanation: "Le texte dit 'inspiree des travaux d'Elinor Ostrom sur la gouvernance des ressources communes'." },
-      { id: "q3", question: "Qu'est-ce que la theorie des communs numeriques propose ?", options: ["De nationaliser les plateformes", "D'apprehender certaines infrastructures comme des biens communs sous gouvernance democratique", "De creer des alternatives publiques", "De taxer les plateformes etrangeres"], correct_answer: 1, explanation: "Le texte dit 'apprehender certaines infrastructures numeriques...comme des biens communs devant etre soumis a des regimes de gouvernance collective et democratique'." },
-      { id: "q4", question: "Quelle ville europeenne a experimente la souverainete numerique locale ?", options: ["Paris", "Berlin", "Amsterdam", "Barcelona"], correct_answer: 3, explanation: "Le texte dit 'Des villes comme Barcelona et, dans une moindre mesure, Montreal ont experimente des approches de souverainete numerique locale'." },
-      { id: "q5", question: "Quelle limite ces initiatives rencontrent-elles ?", options: ["Le manque de financement public", "La puissance des ecosystemes proprietaires mondiaux", "L'opposition des citoyens", "L'absence de technologies adequates"], correct_answer: 1, explanation: "Le texte dit 'se heurtent cependant a la puissance des ecosystemes proprietaires mondiaux'." },
-    ],
-  },
-  {
-    id: "r50",
-    title: "La memoire collective et l'histoire nationale",
-    level: "C1",
-    topic: "Culture",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `La maniere dont une societe construit et transmet son recit historique collectif est rarement neutre : elle reflete des rapports de pouvoir, des choix d'inclusion et d'exclusion et des visions normatives de ce que la communaute nationale devrait etre et valoriser. Au Quebec, les debats recurrents sur l'enseignement de l'histoire nationale revelent ces tensions avec acuite. La place des peuples autochtones dans le recit de la fondation du Quebec, longtemps marginalisee au profit d'une histoire centree sur la colonisation europeenne et la survivance canadienne-francaise, est aujourd'hui de plus en plus contestee et reexaminee. De meme, la contribution des minorites ethniques et des femmes a la construction de la societe quebecoise, historiquement sous-representee dans les manuels scolaires, fait l'objet d'une revalorisation progressive. Ces reamenagements du recit historique ne vont pas sans resistances de la part de ceux qui y voient une remise en cause d'une identite collective percue comme fragile et menacee, illustrant la dimension profondement politique de toute memoire collective.`,
-    questions: [
-      { id: "q1", question: "Pourquoi la construction du recit historique collectif n'est-elle pas neutre ?", options: ["Parce qu'elle est realisee par des historiens biases", "Parce qu'elle reflete des rapports de pouvoir et des choix normatifs", "Parce qu'elle est toujours favorable aux gagnants", "Parce qu'elle varie selon les regions"], correct_answer: 1, explanation: "Le texte dit 'elle reflete des rapports de pouvoir, des choix d'inclusion et d'exclusion et des visions normatives'." },
-      { id: "q2", question: "Quelle perspective a longtemps ete marginalisee dans l'histoire du Quebec ?", options: ["La contribution des immigrants recents", "La place des peuples autochtones dans le recit de fondation", "L'histoire economique du Quebec", "L'histoire des guerres coloniales"], correct_answer: 1, explanation: "Le texte dit 'La place des peuples autochtones dans le recit de la fondation du Quebec, longtemps marginalisee'." },
-      { id: "q3", question: "Au profit de quelle perspective cette marginalisation a-t-elle eu lieu ?", options: ["D'une histoire centree sur l'economie", "D'une histoire centree sur la colonisation europeenne et la survivance canadienne-francaise", "D'une histoire centree sur les relations avec les Etats-Unis", "D'une histoire centree sur les constitutions politiques"], correct_answer: 1, explanation: "Le texte dit 'au profit d'une histoire centree sur la colonisation europeenne et la survivance canadienne-francaise'." },
-      { id: "q4", question: "Quelle autre revision historique est mentionnee ?", options: ["La revision de la Conquete britannique", "La revalorisation de la contribution des minorites ethniques et des femmes", "La reinterpretation de la Revolution tranquille", "La relecture de la periode des referendums"], correct_answer: 1, explanation: "Le texte dit 'la contribution des minorites ethniques et des femmes...fait l'objet d'une revalorisation progressive'." },
-      { id: "q5", question: "Pourquoi ces reamenagements suscitent-ils des resistances ?", options: ["Parce qu'ils sont historiquement inexacts", "Parce qu'ils remettent en cause une identite collective percue comme fragile", "Parce qu'ils coutent trop cher a implementer", "Parce qu'ils divisent les historiens professionnels"], correct_answer: 1, explanation: "Le texte dit 'resistances de la part de ceux qui y voient une remise en cause d'une identite collective percue comme fragile et menacee'." },
-    ],
-  },
-  {
-    id: "r51",
-    title: "L'urbanisme transitoire et l'espace public",
-    level: "C1",
-    topic: "Societe",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `L'urbanisme transitoire, qui consiste a animer temporairement des espaces vacants ou sous-utilises en attendant leur redeveloppement definitif, s'est impose au cours de la derniere decennie comme une pratique urbanistique reconnue dans les metropoles nord-americaines et europeennes, Montreal en tete. Ce mouvement, ne de la creativite des acteurs culturels et associatifs face a la rarefaction des espaces abordables en ville, a progressivement ete institutionnalise et recupere par les pouvoirs publics et les promoteurs immobiliers qui y voient un outil de valorisation territoriale. Cette recuperation souleve une question fondamentale : l'urbanisme transitoire est-il encore un outil d'emancipation des communautes et de democratisation de l'espace public, ou est-il devenu un instrument de gentrification douce qui prepare le terrain a la speculation immobiliere en ameliorant l'image des quartiers populaires ? La tension entre sa dimension experimentale et participative d'une part, et sa fonctionnalisation economique d'autre part, est au coeur des debats contemporains sur la gouvernance urbaine.`,
-    questions: [
-      { id: "q1", question: "Qu'est-ce que l'urbanisme transitoire ?", options: ["La construction permanente de nouveaux quartiers", "L'animation temporaire d'espaces vacants en attente de redeveloppement", "La renovation des batiments anciens", "La creation de zones commerciales temporaires"], correct_answer: 1, explanation: "Le texte dit 'consiste a animer temporairement des espaces vacants ou sous-utilises en attendant leur redeveloppement definitif'." },
-      { id: "q2", question: "Qui a initie ce mouvement a l'origine ?", options: ["Les promoteurs immobiliers", "Les pouvoirs publics", "Les acteurs culturels et associatifs", "Les architectes urbanistes"], correct_answer: 2, explanation: "Le texte dit 'ne de la creativite des acteurs culturels et associatifs'." },
-      { id: "q3", question: "Comment cette pratique a-t-elle evolue ?", options: ["Elle est restee marginale", "Elle a ete institutionnalisee et recuperee par pouvoirs publics et promoteurs", "Elle a disparu avec la pandemie", "Elle s'est uniquement developpee hors Quebec"], correct_answer: 1, explanation: "Le texte dit 'progressivement ete institutionnalise et recupere par les pouvoirs publics et les promoteurs immobiliers'." },
-      { id: "q4", question: "Quelle question fondamentale ce mouvement souleve-t-il ?", options: ["Comment financer l'urbanisme transitoire ?", "L'urbanisme transitoire est-il emancipateur ou instrument de gentrification ?", "Qui devrait gerer les espaces transitoires ?", "Combien de temps dure un projet transitoire ?"], correct_answer: 1, explanation: "Le texte dit 'l'urbanisme transitoire est-il encore un outil d'emancipation...ou est-il devenu un instrument de gentrification douce ?'." },
-      { id: "q5", question: "Quelle tension est au coeur des debats sur la gouvernance urbaine ?", options: ["Entre public et prive dans la gestion des espaces", "Entre dimension experimentale/participative et fonctionnalisation economique", "Entre quartiers riches et pauvres", "Entre interets locaux et nationaux"], correct_answer: 1, explanation: "Le texte dit 'La tension entre sa dimension experimentale et participative...et sa fonctionnalisation economique...est au coeur des debats'." },
-    ],
-  },
-  {
-    id: "r52",
-    title: "Les migrations climatiques et le droit international",
-    level: "C1",
-    topic: "Immigration",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `Les migrations induites par les changements climatiques constituent l'un des defis les plus complexes auxquels le droit international des refugies doit faire face dans les prochaines decennies. Les conventions actuelles, notamment la Convention de Geneve de 1951, definissent le refugie comme une personne fuyant une persecution individuelle fondee sur des criteres comme la race, la religion, la nationalite, l'appartenance a un groupe social ou les opinions politiques. Cette definition, forgee dans le contexte de la Guerre froide, ne prevoit pas de protection specifique pour les personnes contraintes de quitter leur territoire en raison de catastrophes climatiques comme la montee des eaux, les secheresses prolongees ou l'intensification des cyclones. Des nations insulaires comme Tuvalu ou les Maldives font face a une menace existentielle d'immersion totale, creant le precedent insolite de populations qui pourraient devenir apatrides sans aucune persecucion individuelle. Le droit international peche ici par inadaptation, et les negociations pour l'elargissement de la protection aux migrants climatiques se heurtent aux resistances d'Etats qui craignent un elargissement indefini de leurs obligations d'accueil.`,
-    questions: [
-      { id: "q1", question: "Pourquoi la Convention de Geneve de 1951 est-elle inadequate pour les migrants climatiques ?", options: ["Elle est trop ancienne pour etre valide", "Elle ne prevoit pas de protection pour les personnes fuyant des catastrophes climatiques", "Elle n'a pas ete ratifiee par assez de pays", "Elle definit trop largement le statut de refugie"], correct_answer: 1, explanation: "Le texte dit 'Cette definition...ne prevoit pas de protection specifique pour les personnes contraintes de quitter...en raison de catastrophes climatiques'." },
-      { id: "q2", question: "Quel critere de persecution n'inclut pas les changements climatiques dans la Convention ?", options: ["La nationalite", "La persecution fondee sur la race, religion, nationalite, groupe social ou opinions politiques", "L'appartenance a un groupe politique", "Les opinions religieuses"], correct_answer: 1, explanation: "Le texte dit la definition porte sur 'une persecution individuelle fondee sur des criteres comme la race, la religion...' mais pas les catastrophes climatiques." },
-      { id: "q3", question: "Quel exemple concret de menace existentielle est donne ?", options: ["Le Bangladesh", "La Hollande", "Tuvalu et les Maldives", "La Floride"], correct_answer: 2, explanation: "Le texte dit 'Des nations insulaires comme Tuvalu ou les Maldives font face a une menace existentielle d'immersion totale'." },
-      { id: "q4", question: "Quel paradoxe juridique ces nations illustrent-elles ?", options: ["Elles peuvent demander la souverainete sans territoire", "Des populations pourraient devenir apatrides sans aucune persecution individuelle", "Elles beneficient deja de protections speciales", "La CIJ peut intervenir sans demande formelle"], correct_answer: 1, explanation: "Le texte dit 'des populations qui pourraient devenir apatrides sans aucune persecution individuelle'." },
-      { id: "q5", question: "Pourquoi les negociations pour proteger les migrants climatiques avancent-elles peu ?", options: ["Manque de preuves scientifiques", "Resistances d'Etats craignant un elargissement de leurs obligations d'accueil", "Desaccord des organisations internationales", "Opposition des migrants climatiques eux-memes"], correct_answer: 1, explanation: "Le texte dit 'les negociations...se heurtent aux resistances d'Etats qui craignent un elargissement indefini de leurs obligations d'accueil'." },
-    ],
-  },
-  {
-    id: "r53",
-    title: "La question de la verite en democratie",
-    level: "C1",
-    topic: "Philosophie",
-    time_limit: 900,
-    created_at: new Date().toISOString(),
-    text: `La relation entre la verite et la democratie constitue l'une des questions philosophiques et politiques les plus pressantes de notre epoque, alors que les societes democratiques font face simultanement a une surabondance d'informations et a une erosion des mecanismes traditionnels de certification de la verite. Hannah Arendt distinguait la verite factuelle, verifiable par des preuves, de la verite philosophique, relevant du jugement. Cette distinction s'avere d'une acuite particuliere dans un contexte ou des acteurs politiques contestent ouvertement des faits etablis - resultats electoraux, donnees scientifiques sur le climat, bilan de pandemies - non par ignorance mais par strategie deliberee de brouillage epistemique. Les philosophes du post-verite analysent ce phenomene comme une instrumentalisation de la pluralite des perspectives inherente aux societes democratiques pour produire une confusion qui profite aux pouvoirs en place. La question de savoir si la democratie peut fonctionner sans un minimum de realite partagee – sans un plancher epistemique commun – touche au fondement meme du projet democratique.`,
-    questions: [
-      { id: "q1", question: "Quelle distinction Hannah Arendt etablit-elle ?", options: ["Entre opinion publique et verite officielle", "Entre verite factuelle verifiable et verite philosophique", "Entre verite scientifique et verite juridique", "Entre verite individuelle et collective"], correct_answer: 1, explanation: "Le texte dit 'Hannah Arendt distinguait la verite factuelle, verifiable par des preuves, de la verite philosophique, relevant du jugement'." },
-      { id: "q2", question: "Comment les acteurs politiques contestent-ils des faits etablis selon le texte ?", options: ["Par ignorance de la realite", "Par strategie deliberee de brouillage epistemique", "Par erreurs de calcul", "Par peur des consequences"], correct_answer: 1, explanation: "Le texte dit 'non par ignorance mais par strategie deliberee de brouillage epistemique'." },
-      { id: "q3", question: "Que signifie le concept de 'post-verite' selon les philosophes cites ?", options: ["Que la verite n'existe plus", "Une instrumentalisation de la pluralite des perspectives pour creer la confusion", "Que la science a remplace la verite", "Que chaque individu a sa propre verite"], correct_answer: 1, explanation: "Le texte dit 'une instrumentalisation de la pluralite des perspectives inherente aux societes democratiques pour produire une confusion'." },
-      { id: "q4", question: "Quel double defi les societes democratiques affrontent-elles en matiere d'information ?", options: ["Trop peu d'information et trop de censure", "Surabondance d'information et erosion des mecanismes de verification de la verite", "Manque de journalistes et excès de reseaux sociaux", "Trop de verite et pas assez d'opinions"], correct_answer: 1, explanation: "Le texte dit 'surabondance d'informations et erosion des mecanismes traditionnels de certification de la verite'." },
-      { id: "q5", question: "Quelle question fondamentale le texte pose-t-il sur la democratie ?", options: ["Si la democratie peut exister sans elections", "Si la democratie peut fonctionner sans un minimum de realite partagee", "Si la democratie est compatible avec le capitalisme", "Si les citoyens peuvent gouverner sans dirigeants"], correct_answer: 1, explanation: "Le texte dit 'si la democratie peut fonctionner sans un minimum de realite partagee – sans un plancher epistemique commun'." },
-    ],
-  },
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStage("list")}>Retour</Button>
+            <Button className="flex-1" size="lg" icon={<Mic size={18} />} onClick={startRecording}>
+              Commencer l'enregistrement
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
-];
+  if (stage === "recording" && selected) {
+    return (
+      <AppLayout title="Enregistrement en cours">
+        <div className="max-w-xl mx-auto text-center space-y-8 animate-fade-in">
+          <div>
+            <div className="w-32 h-32 rounded-full bg-danger-500/10 flex items-center justify-center mx-auto mb-6 relative">
+              <div className="absolute inset-0 rounded-full bg-danger-500/20 animate-ping" />
+              <div className="absolute inset-3 rounded-full bg-danger-500/20 animate-ping" style={{ animationDelay: "0.3s" }} />
+              <div className="w-20 h-20 rounded-full bg-danger-500 flex items-center justify-center z-10 shadow-lg">
+                <Mic size={32} className="text-white" />
+              </div>
+            </div>
+            <div className="font-mono text-4xl font-bold text-surface-900 dark:text-white mb-2">{formatTime(recordingTime)}</div>
+            <p className="text-surface-500 text-sm">Enregistrement en cours...</p>
+          </div>
 
-// 20 Listening exercises with transcript (used for browser TTS)
-export const sampleListeningExercises: ListeningExercise[] = [
-  {
-    id: "l1",
-    title: "Se presenter et parler de sa famille",
-    level: "A1",
-    audio_url: "",
-    duration: 60,
-    topic: "Famille et presentation",
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour, je m'appelle Marie. J'ai trente ans. Je suis originaire de France mais j'habite maintenant a Montreal. J'ai une petite famille. Mon mari s'appelle Pierre et nous avons deux enfants, un garcon de cinq ans et une fille de trois ans. Nous aimons beaucoup vivre au Quebec.",
-    questions: [
-      { id: "q1", question: "Comment s'appelle cette personne ?", options: ["Sophie", "Marie", "Claire", "Julie"], correct_answer: 1, explanation: "Elle dit 'je m'appelle Marie'." },
-      { id: "q2", question: "Quel age a-t-elle ?", options: ["20 ans", "25 ans", "30 ans", "35 ans"], correct_answer: 2, explanation: "Elle dit 'J'ai trente ans'." },
-      { id: "q3", question: "Combien d'enfants a-t-elle ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Elle dit 'nous avons deux enfants'." },
-      { id: "q4", question: "D'ou vient-elle ?", options: ["Du Quebec", "De Belgique", "De France", "De Suisse"], correct_answer: 2, explanation: "Elle dit 'je suis originaire de France'." },
-    ],
-  },
-  {
-    id: "l2",
-    title: "Au marche - faire ses courses",
-    level: "A1",
-    audio_url: "",
-    duration: 75,
-    topic: "Vie quotidienne",
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour madame. Bonjour. Je voudrais des pommes s'il vous plait. Oui, combien en voulez-vous ? Six pommes s'il vous plait. Et avec ca ? Je voudrais aussi du pain et du lait. Ca fait cinq dollars cinquante. Voila dix dollars. Et votre monnaie, quatre dollars cinquante. Merci beaucoup. Bonne journee.",
-    questions: [
-      { id: "q1", question: "Que veut acheter la cliente en premier ?", options: ["Du pain", "Du lait", "Des pommes", "Des oranges"], correct_answer: 2, explanation: "Elle demande 'des pommes s'il vous plait'." },
-      { id: "q2", question: "Combien de pommes veut-elle ?", options: ["Quatre", "Cinq", "Six", "Sept"], correct_answer: 2, explanation: "Elle dit 'Six pommes s'il vous plait'." },
-      { id: "q3", question: "Combien coute tout ?", options: ["4,50$", "5,50$", "6,50$", "10$"], correct_answer: 1, explanation: "Le vendeur dit 'Ca fait cinq dollars cinquante'." },
-      { id: "q4", question: "Combien donne-t-elle ?", options: ["5$", "7$", "8$", "10$"], correct_answer: 3, explanation: "Elle donne 'dix dollars'." },
-    ],
-  },
-  {
-    id: "l3",
-    title: "La routine du matin",
-    level: "A1",
-    audio_url: "",
-    duration: 80,
-    topic: "Vie quotidienne",
-    created_at: new Date().toISOString(),
-    transcript: "Tous les matins, je me leve a sept heures. Je prends une douche et je m'habille. Ensuite, je mange mon petit-dejeuner. Je bois du cafe et je mange des toasts. A huit heures, je pars au travail en metro. Le trajet dure vingt minutes. J'arrive au bureau a huit heures et demie.",
-    questions: [
-      { id: "q1", question: "A quelle heure se leve-t-il ?", options: ["6h", "7h", "8h", "9h"], correct_answer: 1, explanation: "Il dit 'je me leve a sept heures'." },
-      { id: "q2", question: "Que boit-il au petit-dejeuner ?", options: ["Du the", "Du jus", "Du cafe", "Du lait"], correct_answer: 2, explanation: "Il dit 'Je bois du cafe'." },
-      { id: "q3", question: "Comment va-t-il au travail ?", options: ["En voiture", "A pied", "En velo", "En metro"], correct_answer: 3, explanation: "Il dit 'je pars au travail en metro'." },
-      { id: "q4", question: "Combien de temps dure le trajet ?", options: ["10 minutes", "15 minutes", "20 minutes", "30 minutes"], correct_answer: 2, explanation: "Il dit 'Le trajet dure vingt minutes'." },
-    ],
-  },
-  {
-    id: "l4",
-    title: "Decrire son appartement",
-    level: "A2",
-    audio_url: "",
-    duration: 90,
-    topic: "Logement",
-    created_at: new Date().toISOString(),
-    transcript: "Mon appartement est situe dans le quartier Plateau-Mont-Royal a Montreal. C'est un appartement de trois pieces avec deux chambres, un salon et une cuisine moderne. Il y a aussi une salle de bain et un balcon. L'appartement est au troisieme etage. Le loyer est de mille deux cents dollars par mois. Je suis tres content de mon logement car il est proche des transports en commun et des commerces.",
-    questions: [
-      { id: "q1", question: "Dans quel quartier est l'appartement ?", options: ["Rosemont", "Plateau-Mont-Royal", "Outremont", "Verdun"], correct_answer: 1, explanation: "Il dit 'dans le quartier Plateau-Mont-Royal'." },
-      { id: "q2", question: "Combien de chambres y a-t-il ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il dit 'deux chambres'." },
-      { id: "q3", question: "Quel est le loyer mensuel ?", options: ["900$", "1000$", "1100$", "1200$"], correct_answer: 3, explanation: "Il dit 'mille deux cents dollars par mois'." },
-      { id: "q4", question: "A quel etage est l'appartement ?", options: ["Premier", "Deuxieme", "Troisieme", "Quatrieme"], correct_answer: 2, explanation: "Il dit 'au troisieme etage'." },
-    ],
-  },
-  {
-    id: "l5",
-    title: "Prendre rendez-vous chez le medecin",
-    level: "A2",
-    audio_url: "",
-    duration: 100,
-    topic: "Sante",
-    created_at: new Date().toISOString(),
-    transcript: "Clinique medicale Cote-des-Neiges, bonjour. Bonjour, je voudrais prendre un rendez-vous avec le docteur Tremblay s'il vous plait. Oui, pour quand ? Le plus tot possible, j'ai mal a la gorge depuis trois jours. Est-ce que mardi a quatorze heures vous convient ? Oui parfait. Votre nom ? Carlos Martinez. Et votre numero de telephone ? C'est le cinq cent douze, trois cent quarante-cinq, six cent soixante-dix-huit. Tres bien, a mardi monsieur Martinez.",
-    questions: [
-      { id: "q1", question: "Avec quel medecin veut-il un rendez-vous ?", options: ["Docteur Leblanc", "Docteur Martin", "Docteur Tremblay", "Docteur Gagnon"], correct_answer: 2, explanation: "Il demande 'le docteur Tremblay'." },
-      { id: "q2", question: "Depuis combien de temps est-il malade ?", options: ["Un jour", "Deux jours", "Trois jours", "Une semaine"], correct_answer: 2, explanation: "Il dit 'depuis trois jours'." },
-      { id: "q3", question: "Quand est le rendez-vous ?", options: ["Lundi a 14h", "Mardi a 14h", "Mercredi a 14h", "Jeudi a 14h"], correct_answer: 1, explanation: "La receptionniste propose 'mardi a quatorze heures'." },
-      { id: "q4", question: "Quel est son probleme de sante ?", options: ["Mal de tete", "Mal au dos", "Mal a la gorge", "Mal au ventre"], correct_answer: 2, explanation: "Il dit 'j'ai mal a la gorge'." },
-    ],
-  },
-  {
-    id: "l6",
-    title: "Les transports en commun a Montreal",
-    level: "A2",
-    audio_url: "",
-    duration: 110,
-    topic: "Transport",
-    created_at: new Date().toISOString(),
-    transcript: "Le reseau de transport en commun de Montreal comprend le metro, les autobus et le train de banlieue. Le metro a quatre lignes et soixante-huit stations. Il fonctionne de cinq heures trente du matin jusqu'a une heure du matin. Un billet simple coute trois dollars cinquante. Il est aussi possible d'acheter des passes mensuelles pour les usagers reguliers. Le reseau de bus complemente le metro et couvre les quartiers non desservis par le metro.",
-    questions: [
-      { id: "q1", question: "Combien de lignes de metro y a-t-il ?", options: ["Deux", "Trois", "Quatre", "Cinq"], correct_answer: 2, explanation: "Le texte dit 'quatre lignes'." },
-      { id: "q2", question: "A quelle heure ouvre le metro le matin ?", options: ["5h", "5h30", "6h", "6h30"], correct_answer: 1, explanation: "Il ouvre 'a cinq heures trente du matin'." },
-      { id: "q3", question: "Combien coute un billet simple ?", options: ["2,50$", "3$", "3,50$", "4$"], correct_answer: 2, explanation: "Le billet coute 'trois dollars cinquante'." },
-      { id: "q4", question: "Combien de stations y a-t-il ?", options: ["48", "58", "68", "78"], correct_answer: 2, explanation: "Il y a 'soixante-huit stations'." },
-    ],
-  },
-  {
-    id: "l7",
-    title: "Parler de ses loisirs",
-    level: "A2",
-    audio_url: "",
-    duration: 95,
-    topic: "Loisirs",
-    created_at: new Date().toISOString(),
-    transcript: "Dans mon temps libre, j'aime beaucoup faire du sport. Je joue au hockey deux fois par semaine avec mes amis. L'hiver, je fais aussi du ski dans les Laurentides. En ete, je prefere nager et faire du velo. Le week-end, j'aime aller au cinema ou lire des romans. La lecture est vraiment ma passion. Je lis au moins un livre par mois.",
-    questions: [
-      { id: "q1", question: "Combien de fois par semaine joue-t-il au hockey ?", options: ["Une fois", "Deux fois", "Trois fois", "Quatre fois"], correct_answer: 1, explanation: "Il dit 'deux fois par semaine'." },
-      { id: "q2", question: "Ou fait-il du ski ?", options: ["En Gaspesie", "Dans les Laurentides", "A Quebec", "En Ontario"], correct_answer: 1, explanation: "Il dit 'dans les Laurentides'." },
-      { id: "q3", question: "Quelle est sa passion ?", options: ["Le cinema", "Le sport", "La lecture", "La musique"], correct_answer: 2, explanation: "Il dit 'La lecture est vraiment ma passion'." },
-      { id: "q4", question: "Combien de livres lit-il par mois ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 0, explanation: "Il dit 'au moins un livre par mois'." },
-    ],
-  },
-  {
-    id: "l8",
-    title: "Le marche du travail au Quebec",
-    level: "B1",
-    audio_url: "",
-    duration: 150,
-    topic: "Travail",
-    created_at: new Date().toISOString(),
-    transcript: "Le marche du travail au Quebec connait actuellement une importante penurie de main-d'oeuvre dans plusieurs secteurs. Les domaines de la sante, de l'education, de la technologie et de la construction sont particulierement touches. Cette situation pousse les entreprises a recruter activement a l'etranger. Le gouvernement quebecois a mis en place des programmes speciaux pour faciliter l'immigration de travailleurs qualifies. Les immigrants qui obtiennent un emploi qualifie peuvent beneficier d'un traitement accelere pour leur demande de residence permanente. Le salaire minimum au Quebec est de quatorze dollars et vingt-cinq cents de l'heure.",
-    questions: [
-      { id: "q1", question: "Quel probleme connait le marche du travail ?", options: ["Trop de chomage", "Penurie de main-d'oeuvre", "Salaires trop bas", "Manque de formation"], correct_answer: 1, explanation: "Le texte parle d'une 'importante penurie de main-d'oeuvre'." },
-      { id: "q2", question: "Quel secteur est touche par cette penurie ?", options: ["Le tourisme", "L'agriculture", "La sante", "Le commerce"], correct_answer: 2, explanation: "La sante est mentionnee parmi les secteurs touches." },
-      { id: "q3", question: "Que fait le gouvernement face a ce probleme ?", options: ["Augmenter les salaires", "Reduire les impots", "Faciliter l'immigration", "Former plus de jeunes"], correct_answer: 2, explanation: "Il a 'mis en place des programmes pour faciliter l'immigration'." },
-      { id: "q4", question: "Quel est le salaire minimum ?", options: ["13,25$", "14,25$", "15,25$", "16,25$"], correct_answer: 1, explanation: "Le salaire minimum est de 'quatorze dollars et vingt-cinq cents'." },
-    ],
-  },
-  {
-    id: "l9",
-    title: "L'education au Quebec",
-    level: "B1",
-    audio_url: "",
-    duration: 160,
-    topic: "Education",
-    created_at: new Date().toISOString(),
-    transcript: "Le systeme d'education quebecois est different du reste du Canada. Apres l'ecole primaire et secondaire, les etudiants quebecois frequentent le CEGEP, ce qui signifie College d'Enseignement General et Professionnel. Le CEGEP offre deux types de programmes : les programmes preuniversitaires de deux ans et les programmes techniques de trois ans. Apres le CEGEP, les etudiants peuvent s'inscrire a l'universite. Les frais de scolarite universitaires au Quebec sont parmi les moins eleves au Canada, ce qui rend l'education accessible a tous. Le gouvernement offre egalement des prets et bourses aux etudiants dans le besoin.",
-    questions: [
-      { id: "q1", question: "Qu'est-ce que le CEGEP ?", options: ["Une ecole primaire", "Un college post-secondaire", "Une universite", "Une ecole de metiers"], correct_answer: 1, explanation: "CEGEP signifie 'College d'Enseignement General et Professionnel'." },
-      { id: "q2", question: "Combien dure un programme preuniversitaire au CEGEP ?", options: ["Un an", "Deux ans", "Trois ans", "Quatre ans"], correct_answer: 1, explanation: "Les programmes preuniversitaires durent 'deux ans'." },
-      { id: "q3", question: "Comment sont les frais universitaires au Quebec ?", options: ["Tres eleves", "Les plus eleves au Canada", "Parmi les moins eleves", "Gratuits"], correct_answer: 2, explanation: "Ils sont 'parmi les moins eleves au Canada'." },
-      { id: "q4", question: "Que propose le gouvernement aux etudiants ?", options: ["Des emplois", "Des logements", "Des prets et bourses", "Des voyages"], correct_answer: 2, explanation: "Le gouvernement offre 'des prets et bourses aux etudiants dans le besoin'." },
-    ],
-  },
-  {
-    id: "l10",
-    title: "La gastronomie quebecoise",
-    level: "B1",
-    audio_url: "",
-    duration: 140,
-    topic: "Culture et gastronomie",
-    created_at: new Date().toISOString(),
-    transcript: "La cuisine quebecoise est un melange savoureux de traditions francaises et d'influences nord-americaines. Le plat le plus connu est la poutine, composee de frites, de fromage en grains et de sauce brune. La tourtiere est un pate a la viande traditionnellement prepare a Noel. Le sirop d'erable est un produit emblematique du Quebec. Le Quebec produit environ soixante-dix pour cent de la production mondiale de sirop d'erable. En mars et avril, les gens visitent les cabanes a sucre pour gouter au sirop frais directement des arbres. La cuisine quebecoise evolue constamment, avec de nombreux chefs qui creent des plats innovants bases sur les produits locaux.",
-    questions: [
-      { id: "q1", question: "De quoi est composee la poutine ?", options: ["Riz, poulet et sauce", "Frites, fromage et sauce brune", "Pates, viande et legumes", "Pain, fromage et jambon"], correct_answer: 1, explanation: "La poutine est 'composee de frites, de fromage en grains et de sauce brune'." },
-      { id: "q2", question: "Quand prepare-t-on traditionnellement la tourtiere ?", options: ["A Paques", "En ete", "A Noel", "A Halloween"], correct_answer: 2, explanation: "Elle est 'traditionnellement preparee a Noel'." },
-      { id: "q3", question: "Quel pourcentage de sirop d'erable le Quebec produit-il ?", options: ["40%", "50%", "60%", "70%"], correct_answer: 3, explanation: "Le Quebec produit 'environ soixante-dix pour cent'." },
-      { id: "q4", question: "Quand visite-t-on les cabanes a sucre ?", options: ["En janvier", "En mars et avril", "En juin", "En octobre"], correct_answer: 1, explanation: "C'est 'en mars et avril'." },
-    ],
-  },
-  {
-    id: "l11",
-    title: "Le logement a Montreal",
-    level: "B1",
-    audio_url: "",
-    duration: 155,
-    topic: "Logement",
-    created_at: new Date().toISOString(),
-    transcript: "Trouver un logement abordable a Montreal est devenu un veritable defi ces dernieres annees. Le prix des loyers a augmente de maniere significative, notamment depuis la pandemie. Dans certains quartiers centraux comme le Plateau ou Outremont, un appartement de deux chambres peut couter plus de deux mille dollars par mois. Les experts attribuent cette hausse a plusieurs facteurs : la forte demande, le manque de nouvelles constructions et l'attrait croissant de Montreal pour les travailleurs a distance. Le gouvernement provincial a adopte des mesures pour proteger les locataires, notamment en limitant les augmentations de loyer. Cependant, beaucoup estiment que ces mesures sont insuffisantes face a la crise du logement.",
-    questions: [
-      { id: "q1", question: "Quel est le principal defi a Montreal ?", options: ["La securite", "Le logement abordable", "Le transport", "L'emploi"], correct_answer: 1, explanation: "Le texte parle de 'trouver un logement abordable'." },
-      { id: "q2", question: "Combien peut couter un appartement de 2 chambres dans les quartiers centraux ?", options: ["1000$", "1500$", "2000$", "2500$"], correct_answer: 2, explanation: "Il peut couter 'plus de deux mille dollars par mois'." },
-      { id: "q3", question: "Quelle est une cause de la hausse des loyers ?", options: ["La baisse de population", "Le manque de nouvelles constructions", "La crise economique", "Les nouvelles taxes"], correct_answer: 1, explanation: "Le texte mentionne 'le manque de nouvelles constructions'." },
-      { id: "q4", question: "Que fait le gouvernement pour les locataires ?", options: ["Rien", "Construit de nouveaux logements", "Limite les augmentations de loyer", "Donne des subventions"], correct_answer: 2, explanation: "Il limite 'les augmentations de loyer'." },
-    ],
-  },
-  {
-    id: "l12",
-    title: "L'environnement et les changements climatiques",
-    level: "B2",
-    audio_url: "",
-    duration: 180,
-    topic: "Environnement",
-    created_at: new Date().toISOString(),
-    transcript: "Le Quebec s'est engage dans une transition energetique ambitieuse pour lutter contre les changements climatiques. La province beneficie deja d'une production d'electricite quasi entierement renouvelable grace a ses nombreux barrages hydroelectriques. Hydro-Quebec fournit de l'electricite a des tarifs parmi les plus bas en Amerique du Nord. Le gouvernement a fixe des objectifs ambitieux de reduction des emissions de gaz a effet de serre, visant une reduction de trente-sept virgule cinq pour cent par rapport aux niveaux de 1990 d'ici 2030. Des incitatifs financiers encouragent les citoyens a adopter des vehicules electriques et a ameliorer l'efficacite energetique de leurs maisons. La foret quebecoise, qui couvre pres de la moitie du territoire provincial, joue un role crucial dans la capture du carbone.",
-    questions: [
-      { id: "q1", question: "D'ou vient principalement l'electricite au Quebec ?", options: ["Du nucleaire", "Du solaire", "De l'hydroelectricite", "Du gaz naturel"], correct_answer: 2, explanation: "Grace a 'ses nombreux barrages hydroelectriques'." },
-      { id: "q2", question: "Quel est l'objectif de reduction des emissions d'ici 2030 ?", options: ["25%", "30%", "37,5%", "50%"], correct_answer: 2, explanation: "L'objectif est 'trente-sept virgule cinq pour cent'." },
-      { id: "q3", question: "Quelle proportion du territoire la foret couvre-t-elle ?", options: ["Un tiers", "Pres de la moitie", "Deux tiers", "Les trois quarts"], correct_answer: 1, explanation: "La foret couvre 'pres de la moitie du territoire provincial'." },
-      { id: "q4", question: "Comment le gouvernement encourage-t-il les voitures electriques ?", options: ["En interdisant les voitures a essence", "Par des incitatifs financiers", "En construisant des routes reservees", "Par des taxes"], correct_answer: 1, explanation: "Il utilise 'des incitatifs financiers'." },
-    ],
-  },
-  {
-    id: "l13",
-    title: "La culture et les arts au Quebec",
-    level: "B2",
-    audio_url: "",
-    duration: 170,
-    topic: "Culture",
-    created_at: new Date().toISOString(),
-    transcript: "Le Quebec possede une scene culturelle et artistique tres dynamique qui rayonne bien au-dela de ses frontieres. La litterature quebecoise a produit des auteurs de renommee internationale comme Michel Tremblay et Gabrielle Roy. Le cinema quebecois connait egalement un succes croissant, avec des films comme Incendies de Denis Villeneuve qui ont ete reconnus aux Oscars. La musique populaire quebecoise, avec des artistes comme Celine Dion, Arcade Fire et Coeur de Pirate, a su conquis le public mondial. Les festivals comme le Festival International de Jazz et les FrancoFolies de Montreal attirent des millions de visiteurs chaque ete. Le gouvernement quebecois investit massivement dans la culture pour preserver et promouvoir l'identite francophone unique du Quebec.",
-    questions: [
-      { id: "q1", question: "Quel auteur quebecois est mentionne ?", options: ["Victor Hugo", "Michel Tremblay", "Emile Zola", "Albert Camus"], correct_answer: 1, explanation: "Michel Tremblay est mentionne comme auteur de renommee internationale." },
-      { id: "q2", question: "Quel film quebecois a ete reconnu aux Oscars ?", options: ["Les Invasions barbares", "Incendies", "C.R.A.Z.Y.", "Mommy"], correct_answer: 1, explanation: "Le film 'Incendies de Denis Villeneuve' est mentionne." },
-      { id: "q3", question: "Lequel de ces artistes est quebecois ?", options: ["Lady Gaga", "Adele", "Celine Dion", "Beyonce"], correct_answer: 2, explanation: "Celine Dion est mentionnee comme artiste quebecoise." },
-      { id: "q4", question: "Pourquoi le gouvernement investit-il dans la culture ?", options: ["Pour le tourisme", "Pour l'economie", "Pour preserver l'identite francophone", "Pour l'education"], correct_answer: 2, explanation: "Pour 'preserver et promouvoir l'identite francophone unique du Quebec'." },
-    ],
-  },
-  {
-    id: "l14",
-    title: "Le systeme politique du Quebec",
-    level: "B2",
-    audio_url: "",
-    duration: 190,
-    topic: "Politique et societe",
-    created_at: new Date().toISOString(),
-    transcript: "Le Quebec est une province canadienne qui possede son propre parlement et son gouvernement provincial. L'Assemblee nationale du Quebec, situee a Quebec City, est composee de cent vingt-cinq deputes elus par la population. Le premier ministre du Quebec dirige le gouvernement provincial et est responsable de nombreux domaines comme l'education, la sante, la culture et l'immigration. Le Quebec a une relation particuliere avec le gouvernement federal canadien. La question de la souverainete du Quebec a ete au coeur de la politique quebecoise pendant des decennies. Deux referendums ont eu lieu, en 1980 et en 1995, ou les Quebecois ont vote pour rester dans le Canada. La langue francaise est protegee par la Loi 101, qui fait du francais la langue officielle du Quebec dans les domaines du travail, des affaires et de l'education.",
-    questions: [
-      { id: "q1", question: "Combien de deputes siègent a l'Assemblee nationale ?", options: ["100", "115", "125", "150"], correct_answer: 2, explanation: "Il y a 'cent vingt-cinq deputes'." },
-      { id: "q2", question: "Ou est situee l'Assemblee nationale ?", options: ["A Montreal", "A Quebec City", "A Ottawa", "A Sherbrooke"], correct_answer: 1, explanation: "Elle est 'situee a Quebec City'." },
-      { id: "q3", question: "Combien de referendums sur la souverainete y a-t-il eu ?", options: ["Un", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il y en a eu deux, 'en 1980 et en 1995'." },
-      { id: "q4", question: "Que protege la Loi 101 ?", options: ["Les droits des immigrants", "La langue francaise", "L'environnement", "L'economie"], correct_answer: 1, explanation: "La Loi 101 fait du francais 'la langue officielle du Quebec'." },
-    ],
-  },
-  {
-    id: "l15",
-    title: "Chercher un emploi au Quebec",
-    level: "B1",
-    audio_url: "",
-    duration: 145,
-    topic: "Travail et emploi",
-    created_at: new Date().toISOString(),
-    transcript: "Trouver un emploi au Quebec necessite une bonne preparation. Il est important d'adapter son curriculum vitae au format quebecois, qui est different du format europeen. Au Quebec, on n'inclut generalement pas de photo ni d'informations personnelles comme l'age ou l'etat civil. La lettre de motivation doit etre concise et mettre en valeur vos competences specifiques. Les reseaux professionnels comme LinkedIn sont tres utilises pour le recrutement. Les immigrants peuvent aussi beneficier de l'aide d'organismes specialises comme Emploi-Quebec qui offre des services gratuits d'orientation et de formation. La maitrise du francais oral et ecrit est souvent indispensable pour acceder aux emplois qualifies.",
-    questions: [
-      { id: "q1", question: "Qu'est-ce qu'on n'inclut pas dans un CV quebecois ?", options: ["Les competences", "L'experience", "La photo", "La formation"], correct_answer: 2, explanation: "On n'inclut 'generalement pas de photo'." },
-      { id: "q2", question: "Quel reseau professionnel est tres utilise ?", options: ["Facebook", "Twitter", "LinkedIn", "Instagram"], correct_answer: 2, explanation: "LinkedIn est 'tres utilise pour le recrutement'." },
-      { id: "q3", question: "Quel organisme aide les immigrants a trouver un emploi ?", options: ["Immigration Quebec", "Emploi-Quebec", "MIDI", "CNESST"], correct_answer: 1, explanation: "Emploi-Quebec 'offre des services gratuits d'orientation'." },
-      { id: "q4", question: "Qu'est-ce qui est indispensable pour les emplois qualifies ?", options: ["L'anglais", "Le francais oral et ecrit", "Un diplome universitaire", "L'experience internationale"], correct_answer: 1, explanation: "La maitrise du francais est 'souvent indispensable'." },
-    ],
-  },
-  {
-    id: "l16",
-    title: "Les saisons au Quebec",
-    level: "A2",
-    audio_url: "",
-    duration: 105,
-    topic: "Climat et nature",
-    created_at: new Date().toISOString(),
-    transcript: "Le Quebec a quatre saisons tres distinctes. L'hiver est long et froid, avec des temperatures qui peuvent descendre jusqu'a moins trente degres. La neige couvre le sol de novembre a mars. Le printemps arrive en avril et mai avec le degel et les premieres fleurs. L'ete est chaud et humide, avec des temperatures autour de trente degres. C'est la saison des festivals en plein air. L'automne est magnifique avec ses feuilles colorees en rouge, orange et jaune. Beaucoup de touristes viennent au Quebec pour voir le fameux feuilletage d'automne.",
-    questions: [
-      { id: "q1", question: "Jusqu'a quelle temperature peut-il faire en hiver ?", options: ["-10 degres", "-20 degres", "-30 degres", "-40 degres"], correct_answer: 2, explanation: "Les temperatures 'peuvent descendre jusqu'a moins trente degres'." },
-      { id: "q2", question: "Quand arrive le printemps ?", options: ["Fevrier-mars", "Mars-avril", "Avril-mai", "Mai-juin"], correct_answer: 2, explanation: "Le printemps arrive 'en avril et mai'." },
-      { id: "q3", question: "Quelle est la temperature en ete ?", options: ["20 degres", "25 degres", "30 degres", "35 degres"], correct_answer: 2, explanation: "Les temperatures sont 'autour de trente degres'." },
-      { id: "q4", question: "Pourquoi les touristes visitent-ils le Quebec en automne ?", options: ["Pour le ski", "Pour les festivals", "Pour les feuilles colorees", "Pour la gastronomie"], correct_answer: 2, explanation: "Ils viennent 'pour voir le fameux feuilletage d'automne'." },
-    ],
-  },
-  {
-    id: "l17",
-    title: "La sante mentale et le bien-etre",
-    level: "B1",
-    audio_url: "",
-    duration: 165,
-    topic: "Sante et bien-etre",
-    created_at: new Date().toISOString(),
-    transcript: "La sante mentale est de plus en plus reconnue comme un element essentiel du bien-etre global. Au Quebec, environ un Quebecois sur cinq souffre d'un probleme de sante mentale au cours de sa vie. Les problemes les plus courants sont la depression et l'anxiete. Depuis la pandemie, la demande de services en sante mentale a augmente considerablement. Le gouvernement quebecois a investi des centaines de millions de dollars pour ameliorer l'acces aux soins psychologiques. Des applications mobiles et des services en ligne permettent maintenant d'acceder a une aide psychologique rapidement. La reduction du stigma associe aux problemes de sante mentale est egalement une priorite pour sensibiliser la population.",
-    questions: [
-      { id: "q1", question: "Combien de Quebecois souffrent d'un probleme de sante mentale ?", options: ["1 sur 10", "1 sur 5", "1 sur 3", "1 sur 4"], correct_answer: 1, explanation: "Environ 'un Quebecois sur cinq'." },
-      { id: "q2", question: "Quels sont les problemes les plus courants ?", options: ["Stress et fatigue", "Depression et anxiete", "Insomnie et phobies", "Addiction et violence"], correct_answer: 1, explanation: "Les plus courants sont 'la depression et l'anxiete'." },
-      { id: "q3", question: "Qu'est-ce qui a augmente depuis la pandemie ?", options: ["Le nombre de medecins", "La demande de services en sante mentale", "Les ressources financieres", "Les hopitaux"], correct_answer: 1, explanation: "La 'demande de services en sante mentale a augmente considerablement'." },
-      { id: "q4", question: "Quelle est une des priorites du gouvernement ?", options: ["Construire des hopitaux", "Reduire le stigma", "Former des medecins", "Reduire les impots"], correct_answer: 1, explanation: "La 'reduction du stigma' est une priorite." },
-    ],
-  },
-  {
-    id: "l18",
-    title: "Le commerce et l'economie du Quebec",
-    level: "B2",
-    audio_url: "",
-    duration: 185,
-    topic: "Economie",
-    created_at: new Date().toISOString(),
-    transcript: "L'economie du Quebec est la deuxieme plus grande des provinces canadiennes, apres l'Ontario. Elle est diversifiee avec des secteurs forts dans l'aeronautique, les technologies de l'information, les sciences de la vie et l'industrie agroalimentaire. Montreal est le hub technologique du Canada francophone, avec de nombreuses startups et entreprises multinationales. Le jeu video est un secteur particulierement dynamique, avec des studios comme Ubisoft et EA qui emploient des milliers de personnes. Les exportations quebecoises incluent l'aluminium, les produits forestiers, les avions et les medicaments. Le Quebec entretient des relations commerciales importantes avec les Etats-Unis, qui representent environ soixante-dix pour cent de ses exportations.",
-    questions: [
-      { id: "q1", question: "Quelle est la position economique du Quebec parmi les provinces ?", options: ["Premiere", "Deuxieme", "Troisieme", "Quatrieme"], correct_answer: 1, explanation: "C'est 'la deuxieme plus grande des provinces canadiennes'." },
-      { id: "q2", question: "Quel studio de jeux video est mentionne ?", options: ["Nintendo", "Sony", "Ubisoft", "Microsoft"], correct_answer: 2, explanation: "Ubisoft est mentionne comme studio a Montreal." },
-      { id: "q3", question: "Quel produit n'est pas exporte par le Quebec ?", options: ["L'aluminium", "Les avions", "Le petrole", "Les medicaments"], correct_answer: 2, explanation: "Le petrole n'est pas mentionne parmi les exportations." },
-      { id: "q4", question: "Quel pourcentage des exportations va aux Etats-Unis ?", options: ["50%", "60%", "70%", "80%"], correct_answer: 2, explanation: "Les Etats-Unis representent 'environ soixante-dix pour cent'." },
-    ],
-  },
-  {
-    id: "l19",
-    title: "Les droits et responsabilites au Quebec",
-    level: "B2",
-    audio_url: "",
-    duration: 175,
-    topic: "Citoyennete et droits",
-    created_at: new Date().toISOString(),
-    transcript: "Au Quebec, comme dans le reste du Canada, les droits et libertes fondamentaux sont proteges par la Charte canadienne des droits et libertes ainsi que par la Charte des droits et libertes de la personne du Quebec. Ces chartes garantissent le droit a l'egalite, a la liberte d'expression, a la liberte de religion et a la protection contre la discrimination. Les citoyens et residents permanents ont le droit de vote lors des elections provinciales et federales. Les residents permanents peuvent egalement demander la citoyennete canadienne apres trois ans de residence au Canada. Les nouveaux citoyens ont les memes droits que les Canadiens de naissance, sauf certaines restrictions comme la possibilite de se presenter a certaines fonctions publiques supremes.",
-    questions: [
-      { id: "q1", question: "Combien de chartes protegent les droits au Quebec ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "La charte canadienne et la charte quebecoise, soit deux chartes." },
-      { id: "q2", question: "Apres combien d'annees peut-on demander la citoyennete ?", options: ["Un an", "Deux ans", "Trois ans", "Cinq ans"], correct_answer: 2, explanation: "Apres 'trois ans de residence au Canada'." },
-      { id: "q3", question: "Qui a le droit de voter aux elections ?", options: ["Tous les residents", "Citoyens et residents permanents", "Citoyens seulement", "Tout le monde"], correct_answer: 1, explanation: "Les 'citoyens et residents permanents ont le droit de vote'." },
-      { id: "q4", question: "Les nouveaux citoyens ont-ils les memes droits que les Canadiens de naissance ?", options: ["Non, aucun droit", "Oui, exactement les memes", "Oui, sauf quelques restrictions", "Non, ils ont moins de droits"], correct_answer: 2, explanation: "Ils ont 'les memes droits, sauf certaines restrictions'." },
-    ],
-  },
-  {
-    id: "l20",
-    title: "Le bilinguisme et la langue au Quebec",
-    level: "C1",
-    audio_url: "",
-    duration: 200,
-    topic: "Langue et identite",
-    created_at: new Date().toISOString(),
-    transcript: "La question linguistique est au coeur de l'identite quebecoise depuis des siecles. Le francais, langue de la majorite des Quebecois, est protege et promu par des lois strictes, notamment la Charte de la langue francaise, communement appelee la Loi 101, adoptee en 1977. Cette loi a transforme radicalement le visage linguistique du Quebec en rendant le francais obligatoire dans les milieux de travail, les ecoles publiques et l'affichage commercial. Cependant, la vitalite du francais au Quebec reste fragile face a la domination mondiale de l'anglais et aux flux migratoires. Les debats sur la place de l'anglais, notamment dans l'enseignement superieur et le monde des affaires, restent vifs. Certains arguent qu'une trop grande protection peut nuire a la competitivite economique du Quebec, tandis que d'autres estiment que sans ces mesures, le francais serait menace d'assimilation progressive.",
-    questions: [
-      { id: "q1", question: "En quelle annee la Loi 101 a-t-elle ete adoptee ?", options: ["1960", "1970", "1977", "1985"], correct_answer: 2, explanation: "La Loi 101 a ete 'adoptee en 1977'." },
-      { id: "q2", question: "Ou le francais est-il obligatoire selon la Loi 101 ?", options: ["Uniquement au travail", "Uniquement a l'ecole", "Au travail, a l'ecole et dans l'affichage", "Partout sans exception"], correct_answer: 2, explanation: "Il est obligatoire 'dans les milieux de travail, les ecoles publiques et l'affichage commercial'." },
-      { id: "q3", question: "Pourquoi le francais reste-t-il fragile ?", options: ["A cause des immigrants", "A cause de la domination mondiale de l'anglais", "A cause du gouvernement", "A cause de l'economie"], correct_answer: 1, explanation: "Face 'a la domination mondiale de l'anglais'." },
-      { id: "q4", question: "Quel est le debat principal autour de la protection du francais ?", options: ["Elle coute trop cher", "Elle peut nuire a la competitivite economique", "Elle est inefficace", "Elle discrimine les anglophones"], correct_answer: 1, explanation: "Certains disent qu'elle 'peut nuire a la competitivite economique du Quebec'." },
-    ],
-  },
-  {
-    id: "l21",
-    title: "Bonjour, je m'appelle...",
-    level: "A1",
-    topic: "Presentation",
-    audio_url: "",
-    duration: 55,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour. Je m'appelle Martine. J'ai trente ans. Je viens de France. J'habite a Montreal depuis six mois. Je suis professeure de mathematiques. J'aime beaucoup Montreal. La ville est tres belle et les gens sont sympathiques. Je parle francais. Je ne parle pas encore anglais. Je veux apprendre l'anglais bientot.",
-    questions: [
-      { id: "q1", question: "Comment s'appelle cette personne ?", options: ["Marine", "Martine", "Maryline", "Marielle"], correct_answer: 1, explanation: "Elle dit 'Je m'appelle Martine'." },
-      { id: "q2", question: "Quel age a-t-elle ?", options: ["20 ans", "25 ans", "30 ans", "35 ans"], correct_answer: 2, explanation: "Elle dit 'J'ai trente ans'." },
-      { id: "q3", question: "Quelle est sa profession ?", options: ["Medecin", "Infirmiere", "Professeure de mathematiques", "Avocate"], correct_answer: 2, explanation: "Elle dit 'Je suis professeure de mathematiques'." },
-      { id: "q4", question: "D'ou vient-elle ?", options: ["De Belgique", "De Suisse", "Du Canada", "De France"], correct_answer: 3, explanation: "Elle dit 'Je viens de France'." },
-      { id: "q5", question: "Quelle langue veut-elle apprendre ?", options: ["L'espagnol", "L'italien", "L'anglais", "Le portugais"], correct_answer: 2, explanation: "Elle dit 'Je veux apprendre l'anglais bientot'." },
-    ],
-  },
-  {
-    id: "l22",
-    title: "La routine du matin",
-    level: "A1",
-    topic: "Vie quotidienne",
-    audio_url: "",
-    duration: 60,
-    created_at: new Date().toISOString(),
-    transcript: "Le matin, je me leve a six heures et demie. Je prends une douche. Je mange des cereales et je bois un cafe. Je m'habille. Je pars de la maison a sept heures et quart. Je prends le metro pour aller au travail. Le trajet dure vingt minutes. J'arrive au bureau a sept heures quarante. Je commence a travailler a huit heures.",
-    questions: [
-      { id: "q1", question: "A quelle heure se leve cette personne ?", options: ["6h", "6h30", "7h", "7h15"], correct_answer: 1, explanation: "Elle dit 'je me leve a six heures et demie'." },
-      { id: "q2", question: "Que mange-t-elle au petit dejeuner ?", options: ["Du pain et du beurre", "Des oeufs et du bacon", "Des cereales", "Des fruits"], correct_answer: 2, explanation: "Elle dit 'Je mange des cereales'." },
-      { id: "q3", question: "Quel transport prend-elle ?", options: ["L'autobus", "Le metro", "La voiture", "Le velo"], correct_answer: 1, explanation: "Elle dit 'Je prends le metro'." },
-      { id: "q4", question: "Combien de temps dure le trajet ?", options: ["10 minutes", "15 minutes", "20 minutes", "30 minutes"], correct_answer: 2, explanation: "Elle dit 'Le trajet dure vingt minutes'." },
-      { id: "q5", question: "A quelle heure commence-t-elle a travailler ?", options: ["7h30", "7h40", "8h", "8h30"], correct_answer: 2, explanation: "Elle dit 'Je commence a travailler a huit heures'." },
-    ],
-  },
-  {
-    id: "l23",
-    title: "Faire les courses",
-    level: "A1",
-    topic: "Shopping",
-    audio_url: "",
-    duration: 58,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour, madame. Bonjour. Je voudrais un kilo de pommes, s'il vous plait. Voila. Et aussi deux cents grammes de fromage. Du cheddar ou du gruyere ? Du cheddar, s'il vous plait. Tres bien. C'est tout ? Non, je voudrais aussi une baguette. D'accord. Ca fait huit dollars cinquante, s'il vous plait. Voila dix dollars. Votre monnaie, un dollar cinquante. Merci. Bonne journee !",
-    questions: [
-      { id: "q1", question: "Combien de pommes la cliente achete-t-elle ?", options: ["500 grammes", "Un kilo", "Deux kilos", "Trois pommes"], correct_answer: 1, explanation: "Elle dit 'un kilo de pommes'." },
-      { id: "q2", question: "Quel type de fromage choisit-elle ?", options: ["Du gruyere", "Du brie", "Du cheddar", "Du camembert"], correct_answer: 2, explanation: "Elle dit 'Du cheddar, s'il vous plait'." },
-      { id: "q3", question: "Que commande-t-elle en plus ?", options: ["Un gateau", "Une baguette", "Des legumes", "Du lait"], correct_answer: 1, explanation: "Elle dit 'je voudrais aussi une baguette'." },
-      { id: "q4", question: "Combien coute le total ?", options: ["7,50$", "8,00$", "8,50$", "9,00$"], correct_answer: 2, explanation: "Le vendeur dit 'Ca fait huit dollars cinquante'." },
-      { id: "q5", question: "Combien de monnaie recoit-elle ?", options: ["0,50$", "1,00$", "1,50$", "2,00$"], correct_answer: 2, explanation: "Le vendeur dit 'votre monnaie, un dollar cinquante'." },
-    ],
-  },
-  {
-    id: "l24",
-    title: "Les vetements et les couleurs",
-    level: "A1",
-    topic: "Shopping",
-    audio_url: "",
-    duration: 55,
-    created_at: new Date().toISOString(),
-    transcript: "Aujourd'hui, je vais acheter des vetements. Je cherche un pantalon bleu et une chemise blanche. Je trouve un pantalon bleu. Il coute quarante dollars. La chemise blanche coute vingt-cinq dollars. J'achete aussi une veste noire. Elle coute soixante dollars. En tout, je depense cent vingt-cinq dollars. Je suis content de mes achats.",
-    questions: [
-      { id: "q1", question: "Quelle couleur de pantalon cherche-t-il ?", options: ["Noir", "Gris", "Bleu", "Beige"], correct_answer: 2, explanation: "Il dit 'Je cherche un pantalon bleu'." },
-      { id: "q2", question: "Combien coute le pantalon ?", options: ["30$", "35$", "40$", "45$"], correct_answer: 2, explanation: "Il dit 'Il coute quarante dollars'." },
-      { id: "q3", question: "Quelle est la couleur de la veste achetee ?", options: ["Bleue", "Blanche", "Brune", "Noire"], correct_answer: 3, explanation: "Il dit 'une veste noire'." },
-      { id: "q4", question: "Combien coute la chemise blanche ?", options: ["20$", "25$", "30$", "35$"], correct_answer: 1, explanation: "Il dit 'La chemise blanche coute vingt-cinq dollars'." },
-      { id: "q5", question: "Quel est le total des achats ?", options: ["115$", "120$", "125$", "130$"], correct_answer: 2, explanation: "Il dit 'je depense cent vingt-cinq dollars'." },
-    ],
-  },
-  {
-    id: "l25",
-    title: "Prendre un rendez-vous medical",
-    level: "A1",
-    topic: "Sante",
-    audio_url: "",
-    duration: 62,
-    created_at: new Date().toISOString(),
-    transcript: "Allo, cabinet du docteur Poirier. Bonjour, je voudrais prendre un rendez-vous, s'il vous plait. Bien sur. C'est pour quand ? Le plus tot possible. J'ai mal a la gorge depuis trois jours. Monsieur ou Madame ? Madame Kouassi. D'accord, Madame Kouassi. Je vous propose jeudi a quatorze heures. C'est bien, merci. N'oubliez pas d'apporter votre carte RAMQ. Bien sur. A jeudi alors. Au revoir.",
-    questions: [
-      { id: "q1", question: "Chez qui appelle-t-elle ?", options: ["Chez un dentiste", "Chez le docteur Poirier", "A l'hopital", "Chez un pharmacien"], correct_answer: 1, explanation: "La receptionniste dit 'cabinet du docteur Poirier'." },
-      { id: "q2", question: "Quel est le probleme de sante de la patiente ?", options: ["Mal au ventre", "Mal a la tete", "Mal a la gorge", "Mal au dos"], correct_answer: 2, explanation: "Elle dit 'J'ai mal a la gorge depuis trois jours'." },
-      { id: "q3", question: "Depuis combien de temps est-elle malade ?", options: ["Un jour", "Deux jours", "Trois jours", "Une semaine"], correct_answer: 2, explanation: "Elle dit 'depuis trois jours'." },
-      { id: "q4", question: "Quand est le rendez-vous ?", options: ["Mardi a 14h", "Mercredi a 14h", "Jeudi a 14h", "Vendredi a 14h"], correct_answer: 2, explanation: "La receptionniste dit 'jeudi a quatorze heures'." },
-      { id: "q5", question: "Quel document faut-il apporter ?", options: ["Sa carte d'identite", "Son passeport", "Sa carte RAMQ", "Son carnet de sante"], correct_answer: 2, explanation: "On dit 'N'oubliez pas d'apporter votre carte RAMQ'." },
-    ],
-  },
-  {
-    id: "l26",
-    title: "Au restaurant le soir",
-    level: "A1",
-    topic: "Restauration",
-    audio_url: "",
-    duration: 65,
-    created_at: new Date().toISOString(),
-    transcript: "Bonsoir. Vous avez une reservation ? Non, nous n'avons pas de reservation. C'est pour combien de personnes ? Pour deux personnes. D'accord, suivez-moi, s'il vous plait. Voici la carte. Qu'est-ce que vous recommandez ? Le poulet grille est tres bon ce soir. Je vais prendre le poulet grille et mon ami va prendre le spaghetti bolognaise. Et comme boisson ? De l'eau et un jus d'orange, s'il vous plait.",
-    questions: [
-      { id: "q1", question: "Est-ce qu'ils ont une reservation ?", options: ["Oui", "Non", "Ils ne savent pas", "Ils ont annule"], correct_answer: 1, explanation: "Le client dit 'nous n'avons pas de reservation'." },
-      { id: "q2", question: "Pour combien de personnes sont-ils ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il dit 'Pour deux personnes'." },
-      { id: "q3", question: "Que recommande le serveur ?", options: ["Le steak", "Le poisson", "Le poulet grille", "La salade"], correct_answer: 2, explanation: "Le serveur dit 'Le poulet grille est tres bon ce soir'." },
-      { id: "q4", question: "Que commande l'ami ?", options: ["Le poulet grille", "Le spaghetti bolognaise", "Le poisson", "La pizza"], correct_answer: 1, explanation: "Il dit 'mon ami va prendre le spaghetti bolognaise'." },
-      { id: "q5", question: "Quelles boissons commandent-ils ?", options: ["Deux eaux", "Eau et vin rouge", "Eau et jus d'orange", "Deux jus d'orange"], correct_answer: 2, explanation: "Il dit 'De l'eau et un jus d'orange'." },
-    ],
-  },
-  {
-    id: "l27",
-    title: "Le bulletin meteo",
-    level: "A1",
-    topic: "Meteo",
-    audio_url: "",
-    duration: 52,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour, voici la meteo pour aujourd'hui a Montreal. Ce matin, il fait soleil et il fait chaud. La temperature est de vingt-deux degres. Cet apres-midi, des nuages arrivent. Il va pleuvoir en fin d'apres-midi. La temperature va descendre a dix-huit degres. Ce soir, il fera froid. Prenez votre manteau et votre parapluie.",
-    questions: [
-      { id: "q1", question: "Quel temps fait-il ce matin ?", options: ["Il neige", "Il pleut", "Il fait soleil", "Il y a du brouillard"], correct_answer: 2, explanation: "Le bulletin dit 'il fait soleil et il fait chaud'." },
-      { id: "q2", question: "Quelle est la temperature ce matin ?", options: ["18 degres", "20 degres", "22 degres", "25 degres"], correct_answer: 2, explanation: "Il dit 'La temperature est de vingt-deux degres'." },
-      { id: "q3", question: "Que va-t-il se passer cet apres-midi ?", options: ["Il va neiger", "Il va pleuvoir", "Il va faire beau", "Il y aura du vent"], correct_answer: 1, explanation: "Il dit 'Il va pleuvoir en fin d'apres-midi'." },
-      { id: "q4", question: "A quelle temperature descendra-t-il l'apres-midi ?", options: ["15 degres", "16 degres", "18 degres", "20 degres"], correct_answer: 2, explanation: "Il dit 'La temperature va descendre a dix-huit degres'." },
-      { id: "q5", question: "Quels accessoires conseille-t-on d'apporter ?", options: ["Un chapeau et des lunettes", "Un manteau et un parapluie", "Des bottes et un impermeable", "Un pull et des gants"], correct_answer: 1, explanation: "Il dit 'Prenez votre manteau et votre parapluie'." },
-    ],
-  },
-  {
-    id: "l28",
-    title: "Decrire son logement",
-    level: "A1",
-    topic: "Logement",
-    audio_url: "",
-    duration: 58,
-    created_at: new Date().toISOString(),
-    transcript: "Mon appartement est petit mais confortable. Il y a un salon, une cuisine, une chambre et une salle de bain. Ma chambre est grande. Mon lit est pres de la fenetre. Dans le salon, il y a un canape rouge, une television et une petite table. La cuisine est moderne. J'aime beaucoup mon appartement. Le loyer est de neuf cents dollars par mois.",
-    questions: [
-      { id: "q1", question: "Comment est l'appartement ?", options: ["Grand et moderne", "Petit mais confortable", "Petit et inconfortable", "Grand et ancien"], correct_answer: 1, explanation: "Il dit 'Mon appartement est petit mais confortable'." },
-      { id: "q2", question: "Combien de pieces y a-t-il ?", options: ["3", "4", "5", "6"], correct_answer: 1, explanation: "Il mentionne 'un salon, une cuisine, une chambre et une salle de bain', soit 4 pieces." },
-      { id: "q3", question: "De quelle couleur est le canape ?", options: ["Bleu", "Vert", "Rouge", "Jaune"], correct_answer: 2, explanation: "Il dit 'un canape rouge'." },
-      { id: "q4", question: "Ou se trouve le lit ?", options: ["Pres de la porte", "Pres de la fenetre", "Au centre de la chambre", "Dans le salon"], correct_answer: 1, explanation: "Il dit 'Mon lit est pres de la fenetre'." },
-      { id: "q5", question: "Quel est le loyer ?", options: ["700$", "800$", "900$", "1000$"], correct_answer: 2, explanation: "Il dit 'Le loyer est de neuf cents dollars par mois'." },
-    ],
-  },
-  {
-    id: "l29",
-    title: "La classe de francais",
-    level: "A1",
-    topic: "Education",
-    audio_url: "",
-    duration: 60,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour les enfants. Bonjour Madame Tremblay. Asseyez-vous, s'il vous plait. Aujourd'hui, nous allons apprendre les chiffres de un a vingt. Ecoutez bien. Un, deux, trois, quatre, cinq. Maintenant, vous repetez. Un, deux, trois, quatre, cinq. Tres bien. Apres la recreation, nous allons faire du dessin. N'oubliez pas vos crayons de couleur.",
-    questions: [
-      { id: "q1", question: "Comment s'appelle la professeure ?", options: ["Madame Martin", "Madame Tremblay", "Madame Gagnon", "Madame Leblanc"], correct_answer: 1, explanation: "Les enfants disent 'Bonjour Madame Tremblay'." },
-      { id: "q2", question: "Qu'est-ce qu'ils apprennent aujourd'hui ?", options: ["L'alphabet", "Les jours de la semaine", "Les chiffres de 1 a 20", "Les couleurs"], correct_answer: 2, explanation: "Elle dit 'nous allons apprendre les chiffres de un a vingt'." },
-      { id: "q3", question: "Que font-ils apres la recreation ?", options: ["Des mathematiques", "Du sport", "Du dessin", "De la lecture"], correct_answer: 2, explanation: "Elle dit 'Apres la recreation, nous allons faire du dessin'." },
-      { id: "q4", question: "Que demande la professeure d'apporter ?", options: ["Des livres", "Des crayons de couleur", "Une calculatrice", "Des cahiers"], correct_answer: 1, explanation: "Elle dit 'N'oubliez pas vos crayons de couleur'." },
-      { id: "q5", question: "Que fait la professeure apres avoir dit les chiffres ?", options: ["Elle explique les chiffres", "Elle demande aux enfants de repeter", "Elle ecrit au tableau", "Elle pose des questions"], correct_answer: 1, explanation: "Elle dit 'Maintenant, vous repetez'." },
-    ],
-  },
-  {
-    id: "l30",
-    title: "Le week-end en famille",
-    level: "A1",
-    topic: "Loisirs",
-    audio_url: "",
-    duration: 58,
-    created_at: new Date().toISOString(),
-    transcript: "Le week-end, j'aime faire du sport. Le samedi, je joue au football avec mes amis dans le parc. Nous jouons pendant deux heures. Apres le football, nous mangeons une pizza ensemble. Le dimanche, je reste a la maison. Je lis des livres ou je regarde des films. Le soir, je telephone a ma famille en Algerie. J'aime beaucoup mes week-ends.",
-    questions: [
-      { id: "q1", question: "Que fait-il le samedi ?", options: ["Du tennis", "Du basketball", "Du football", "De la natation"], correct_answer: 2, explanation: "Il dit 'je joue au football avec mes amis'." },
-      { id: "q2", question: "Combien de temps jouent-ils au football ?", options: ["Une heure", "Une heure et demie", "Deux heures", "Trois heures"], correct_answer: 2, explanation: "Il dit 'Nous jouons pendant deux heures'." },
-      { id: "q3", question: "Que mangent-ils apres le football ?", options: ["Des hamburgers", "Une pizza", "Des sandwichs", "Des pates"], correct_answer: 1, explanation: "Il dit 'nous mangeons une pizza ensemble'." },
-      { id: "q4", question: "Que fait-il le dimanche ?", options: ["Il sort avec des amis", "Il fait du sport", "Il reste a la maison et lit ou regarde des films", "Il travaille"], correct_answer: 2, explanation: "Il dit 'Je reste a la maison. Je lis des livres ou je regarde des films'." },
-      { id: "q5", question: "Avec qui telephone-t-il le dimanche soir ?", options: ["Ses amis", "Sa famille en Algerie", "Son patron", "Sa voisine"], correct_answer: 1, explanation: "Il dit 'je telephone a ma famille en Algerie'." },
-    ],
-  },
-  {
-    id: "l31",
-    title: "Chercher un appartement",
-    level: "A2",
-    topic: "Logement",
-    audio_url: "",
-    duration: 90,
-    created_at: new Date().toISOString(),
-    transcript: "Allo, j'appelle pour l'annonce de l'appartement sur le site internet. Oui, bonjour. L'appartement est toujours disponible. Il fait environ soixante metres carres. Il y a deux chambres, un salon et une cuisine equipee. Le loyer est de mille deux cents dollars par mois, charges incluses. Est-ce qu'il y a un stationnement ? Oui, il y a un stationnement dans le sous-sol pour trente dollars supplementaires par mois. Est-ce que je peux visiter ? Oui, bien sur. Je suis disponible samedi matin. Ca vous convient ? Oui, parfait. A samedi alors.",
-    questions: [
-      { id: "q1", question: "Quelle est la superficie de l'appartement ?", options: ["50 m2", "60 m2", "70 m2", "80 m2"], correct_answer: 1, explanation: "Il dit 'Il fait environ soixante metres carres'." },
-      { id: "q2", question: "Combien de chambres y a-t-il ?", options: ["Une", "Deux", "Trois", "Quatre"], correct_answer: 1, explanation: "Il dit 'Il y a deux chambres'." },
-      { id: "q3", question: "Les charges sont-elles incluses dans le loyer ?", options: ["Non, elles sont en plus", "Oui, elles sont incluses", "Seulement le chauffage", "Ca depend"], correct_answer: 1, explanation: "Il dit 'Le loyer est de mille deux cents dollars par mois, charges incluses'." },
-      { id: "q4", question: "Combien coute le stationnement en plus ?", options: ["20$", "25$", "30$", "40$"], correct_answer: 2, explanation: "Il dit 'pour trente dollars supplementaires par mois'." },
-      { id: "q5", question: "Quand peut-on visiter l'appartement ?", options: ["Vendredi soir", "Samedi matin", "Samedi apres-midi", "Dimanche"], correct_answer: 1, explanation: "Il dit 'Je suis disponible samedi matin'." },
-    ],
-  },
-  {
-    id: "l32",
-    title: "Le reseau de transport STM",
-    level: "A2",
-    topic: "Transport",
-    audio_url: "",
-    duration: 95,
-    created_at: new Date().toISOString(),
-    transcript: "Le reseau de transport en commun de Montreal est gere par la STM, la Societe de transport de Montreal. Le metro comporte quatre lignes identifiees par des couleurs : la ligne verte, la ligne orange, la ligne jaune et la ligne bleue. Il fonctionne de cinq heures trente a une heure du matin du lundi au vendredi. Le week-end, il ferme a une heure du matin egalement. Un titre de transport simple coute trois dollars et cinquante cents. Pour les usagers frequents, il existe des abonnements mensuels a prix reduit. La BIXI est aussi disponible pour les deplacements en velo en ete.",
-    questions: [
-      { id: "q1", question: "Que signifie STM ?", options: ["Service de transport metropolitain", "Societe de transport de Montreal", "Systeme de transit municipal", "Service de trafic metropolitain"], correct_answer: 1, explanation: "On dit 'la STM, la Societe de transport de Montreal'." },
-      { id: "q2", question: "Combien de lignes de metro y a-t-il ?", options: ["3", "4", "5", "6"], correct_answer: 1, explanation: "On dit 'quatre lignes identifiees par des couleurs'." },
-      { id: "q3", question: "A quelle heure ouvre le metro en semaine ?", options: ["5h", "5h30", "6h", "6h30"], correct_answer: 1, explanation: "On dit 'de cinq heures trente a une heure du matin'." },
-      { id: "q4", question: "Combien coute un titre simple ?", options: ["2,50$", "3,00$", "3,50$", "4,00$"], correct_answer: 2, explanation: "On dit 'trois dollars et cinquante cents'." },
-      { id: "q5", question: "Quel autre mode de transport est mentionne pour l'ete ?", options: ["Le tramway", "Le bateau-taxi", "La BIXI en velo", "Le taxi collectif"], correct_answer: 2, explanation: "On dit 'La BIXI est aussi disponible pour les deplacements en velo en ete'." },
-    ],
-  },
-  {
-    id: "l33",
-    title: "Les droits au travail",
-    level: "A2",
-    topic: "Travail",
-    audio_url: "",
-    duration: 100,
-    created_at: new Date().toISOString(),
-    transcript: "Au Quebec, les travailleurs ont droit a deux semaines de vacances apres un an de service dans une entreprise. Apres trois ans de service, ils ont droit a trois semaines. Il existe aussi plusieurs jours feries pendant l'annee, comme la Fete nationale du Quebec le 24 juin et la Fete du Canada le 1er juillet. Si un employe travaille un jour ferie, il recoit un salaire et demi ou un conge compensatoire. Les conges de maladie sont generalement couverts par l'assurance-emploi apres un certain delai de carence.",
-    questions: [
-      { id: "q1", question: "Combien de semaines de vacances apres un an de service ?", options: ["Une semaine", "Deux semaines", "Trois semaines", "Quatre semaines"], correct_answer: 1, explanation: "On dit 'deux semaines de vacances apres un an de service'." },
-      { id: "q2", question: "Combien de semaines de vacances apres trois ans ?", options: ["Deux semaines", "Trois semaines", "Quatre semaines", "Cinq semaines"], correct_answer: 1, explanation: "On dit 'Apres trois ans de service, ils ont droit a trois semaines'." },
-      { id: "q3", question: "Quand est la Fete nationale du Quebec ?", options: ["Le 1er juillet", "Le 24 juin", "Le 25 mai", "Le 1er aout"], correct_answer: 1, explanation: "On dit 'la Fete nationale du Quebec le 24 juin'." },
-      { id: "q4", question: "Que recoit-on si on travaille un jour ferie ?", options: ["Rien de special", "Un salaire double", "Un salaire et demi ou un conge compensatoire", "Un jour de conge en plus"], correct_answer: 2, explanation: "On dit 'il recoit un salaire et demi ou un conge compensatoire'." },
-      { id: "q5", question: "Qu'est-ce qui couvre les conges de maladie ?", options: ["L'employeur uniquement", "La RAMQ", "L'assurance-emploi apres un delai de carence", "Le CNESST"], correct_answer: 2, explanation: "On dit 'generalement couverts par l'assurance-emploi apres un certain delai de carence'." },
-    ],
-  },
-  {
-    id: "l34",
-    title: "La cuisine typique du Quebec",
-    level: "A2",
-    topic: "Alimentation",
-    audio_url: "",
-    duration: 95,
-    created_at: new Date().toISOString(),
-    transcript: "La cuisine quebecoise est connue pour quelques plats emblematiques. La poutine, qui est composee de frites, de fromage en grains et de sauce brune, est le plat le plus populaire. La tourtiere est une tarte a la viande traditionnellement servie a Noel. Les crepes avec du sirop d'erable sont un petit-dejeuner classique. Le Quebec est le premier producteur mondial de sirop d'erable, avec environ soixante-dix pour cent de la production mondiale. Les cabanes a sucre ou l'on peut deguster des produits de l'erable sont tres visitees au printemps.",
-    questions: [
-      { id: "q1", question: "De quoi est composee la poutine ?", options: ["Frites, ketchup et fromage", "Frites, fromage en grains et sauce brune", "Frites, bacon et sauce", "Frites et gravy uniquement"], correct_answer: 1, explanation: "On dit 'frites, de fromage en grains et de sauce brune'." },
-      { id: "q2", question: "Quand mange-t-on traditionnellement la tourtiere ?", options: ["A Paques", "En ete", "A Noel", "Au Nouvel An"], correct_answer: 2, explanation: "On dit 'traditionnellement servie a Noel'." },
-      { id: "q3", question: "Quel pourcentage de la production mondiale de sirop vient du Quebec ?", options: ["50%", "60%", "70%", "80%"], correct_answer: 2, explanation: "On dit 'environ soixante-dix pour cent de la production mondiale'." },
-      { id: "q4", question: "Qu'est-ce qu'une cabane a sucre ?", options: ["Un magasin de bonbons", "Un endroit pour deguster des produits de l'erable", "Une usine de sirop", "Un restaurant de crepes"], correct_answer: 1, explanation: "On dit 'ou l'on peut deguster des produits de l'erable'." },
-      { id: "q5", question: "Quand visite-t-on les cabanes a sucre ?", options: ["En hiver", "Au printemps", "En ete", "En automne"], correct_answer: 1, explanation: "On dit 'sont tres visitees au printemps'." },
-    ],
-  },
-  {
-    id: "l35",
-    title: "S'inscrire a un cours de sport",
-    level: "A2",
-    topic: "Loisirs",
-    audio_url: "",
-    duration: 92,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour, je voudrais m'inscrire a des cours de natation. Bien sur. Quel niveau recherchez-vous ? Je nage un peu mais je voudrais m'ameliorer. Nous avons des cours pour debutants le lundi et le mercredi de dix-neuf heures a vingt heures. Ca m'interesse. Combien ca coute ? C'est cent cinquante dollars pour une session de dix semaines. Est-ce que je dois apporter mon propre equipement ? Non, les bonnets et les lunettes sont fournis. Il faut juste apporter votre maillot de bain et une serviette.",
-    questions: [
-      { id: "q1", question: "Quel sport veut-elle pratiquer ?", options: ["Le tennis", "La natation", "Le yoga", "La course a pied"], correct_answer: 1, explanation: "Elle dit 'je voudrais m'inscrire a des cours de natation'." },
-      { id: "q2", question: "Quels jours ont lieu les cours pour debutants ?", options: ["Lundi et jeudi", "Mardi et vendredi", "Lundi et mercredi", "Mercredi et vendredi"], correct_answer: 2, explanation: "On dit 'le lundi et le mercredi'." },
-      { id: "q3", question: "Quel est l'horaire des cours ?", options: ["18h-19h", "19h-20h", "20h-21h", "17h-18h"], correct_answer: 1, explanation: "On dit 'de dix-neuf heures a vingt heures'." },
-      { id: "q4", question: "Combien coute une session de cours ?", options: ["100$", "120$", "150$", "180$"], correct_answer: 2, explanation: "On dit 'cent cinquante dollars pour une session de dix semaines'." },
-      { id: "q5", question: "Qu'est-ce qu'elle doit apporter elle-meme ?", options: ["Bonnet et lunettes", "Serviette et lunettes", "Maillot de bain et serviette", "Maillot et bonnet"], correct_answer: 2, explanation: "On dit 'Il faut juste apporter votre maillot de bain et une serviette'." },
-    ],
-  },
-  {
-    id: "l36",
-    title: "Renouveler un permis de travail",
-    level: "A2",
-    topic: "Immigration",
-    audio_url: "",
-    duration: 105,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour, monsieur. Comment puis-je vous aider ? Bonjour. Je suis arrive au Quebec il y a deux mois et je voudrais renouveler mon permis de travail. D'accord. Avez-vous votre passeport et votre permis actuel ? Oui, les voici. Merci. Votre permis expire dans combien de temps ? Dans trois mois. Bien, vous devez faire votre demande de renouvellement au moins soixante jours avant l'expiration. Vous pouvez le faire en ligne sur le site du gouvernement federal. D'accord. Est-ce qu'il faut payer des frais ? Oui, les frais sont de cent cinquante-cinq dollars. Merci beaucoup.",
-    questions: [
-      { id: "q1", question: "Depuis combien de temps cet homme est-il au Quebec ?", options: ["Un mois", "Deux mois", "Trois mois", "Six mois"], correct_answer: 1, explanation: "Il dit 'je suis arrive au Quebec il y a deux mois'." },
-      { id: "q2", question: "Que veut-il renouveler ?", options: ["Son passeport", "Sa carte RAMQ", "Son permis de travail", "Son assurance"], correct_answer: 2, explanation: "Il dit 'je voudrais renouveler mon permis de travail'." },
-      { id: "q3", question: "Dans combien de temps son permis expire-t-il ?", options: ["Un mois", "Deux mois", "Trois mois", "Six mois"], correct_answer: 2, explanation: "Il dit 'Dans trois mois'." },
-      { id: "q4", question: "Combien de jours avant l'expiration faut-il faire la demande ?", options: ["30 jours", "45 jours", "60 jours", "90 jours"], correct_answer: 2, explanation: "On dit 'au moins soixante jours avant l'expiration'." },
-      { id: "q5", question: "Combien coutent les frais de renouvellement ?", options: ["125$", "145$", "155$", "175$"], correct_answer: 2, explanation: "On dit 'les frais sont de cent cinquante-cinq dollars'." },
-    ],
-  },
-  {
-    id: "l37",
-    title: "Un quartier multiculturel",
-    level: "A2",
-    topic: "Vie quebecoise",
-    audio_url: "",
-    duration: 100,
-    created_at: new Date().toISOString(),
-    transcript: "J'habite dans le quartier Cote-des-Neiges a Montreal. C'est un quartier tres cosmopolite ou habitent des gens de partout dans le monde. On peut entendre parler francais, anglais, arabe, hindi et beaucoup d'autres langues dans les rues. Il y a des restaurants de toutes les nationalites : libanais, indien, vietnamien, peruvien. Le marche public du quartier vend des produits du monde entier. J'aime beaucoup vivre ici car je peux decouvrir de nouvelles cultures sans quitter mon quartier.",
-    questions: [
-      { id: "q1", question: "Dans quel quartier habite cette personne ?", options: ["Plateau Mont-Royal", "Rosemont", "Cote-des-Neiges", "Mile-End"], correct_answer: 2, explanation: "Il dit 'J'habite dans le quartier Cote-des-Neiges a Montreal'." },
-      { id: "q2", question: "Quelle langue n'est PAS mentionnee ?", options: ["Francais", "Arabe", "Hindi", "Espagnol"], correct_answer: 3, explanation: "L'espagnol n'est pas mentionne. Les langues citees sont francais, anglais, arabe et hindi." },
-      { id: "q3", question: "Quel type de restaurant n'est PAS mentionne ?", options: ["Libanais", "Vietnamien", "Mexicain", "Indien"], correct_answer: 2, explanation: "Le mexicain n'est pas mentionne. Les types cites sont libanais, indien, vietnamien et peruvien." },
-      { id: "q4", question: "Qu'est-ce que le marche public vend ?", options: ["Seulement des produits locaux", "Des produits du monde entier", "Principalement des legumes", "Des produits importes uniquement"], correct_answer: 1, explanation: "Il dit 'vend des produits du monde entier'." },
-      { id: "q5", question: "Pourquoi aime-t-il habiter dans ce quartier ?", options: ["C'est moins cher", "Il peut decouvrir de nouvelles cultures sans quitter son quartier", "Il y a de bonnes ecoles", "C'est proche de son travail"], correct_answer: 1, explanation: "Il dit 'je peux decouvrir de nouvelles cultures sans quitter mon quartier'." },
-    ],
-  },
-  {
-    id: "l38",
-    title: "L'organisme d'aide aux immigrants",
-    level: "A2",
-    topic: "Immigration",
-    audio_url: "",
-    duration: 108,
-    created_at: new Date().toISOString(),
-    transcript: "Bienvenue a notre organisme d'aide aux immigrants. Nous offrons plusieurs services gratuits. Premierement, nous proposons des cours de francais du lundi au jeudi, de neuf heures a douze heures. Deuxiemement, nous aidons les nouveaux arrivants a chercher un emploi. Notre conseillere peut vous aider a preparer votre CV et vous preparer aux entrevues. Troisiemement, nous organisons des activites sociales chaque semaine pour faciliter l'integration. Pour vous inscrire, apportez votre permis de sejour et une preuve d'adresse. L'inscription est gratuite.",
-    questions: [
-      { id: "q1", question: "Quand ont lieu les cours de francais ?", options: ["Du lundi au mercredi", "Du lundi au jeudi", "Du mardi au vendredi", "Du lundi au vendredi"], correct_answer: 1, explanation: "On dit 'du lundi au jeudi, de neuf heures a douze heures'." },
-      { id: "q2", question: "A quelle heure commencent les cours de francais ?", options: ["8h", "9h", "10h", "11h"], correct_answer: 1, explanation: "On dit 'de neuf heures a douze heures'." },
-      { id: "q3", question: "Qui peut aider a preparer le CV ?", options: ["Un professeur de francais", "Un directeur", "Une conseillere", "Un benevole"], correct_answer: 2, explanation: "On dit 'Notre conseillere peut vous aider a preparer votre CV'." },
-      { id: "q4", question: "A quelle frequence sont organisees les activites sociales ?", options: ["Chaque jour", "Chaque semaine", "Chaque mois", "Chaque saison"], correct_answer: 1, explanation: "On dit 'nous organisons des activites sociales chaque semaine'." },
-      { id: "q5", question: "Quels documents faut-il apporter pour s'inscrire ?", options: ["Passeport et CV", "Permis de sejour et preuve d'adresse", "Diplomes et references", "Photo et formulaire"], correct_answer: 1, explanation: "On dit 'apportez votre permis de sejour et une preuve d'adresse'." },
-    ],
-  },
-  {
-    id: "l39",
-    title: "Le tri des dechets",
-    level: "A2",
-    topic: "Environnement",
-    audio_url: "",
-    duration: 98,
-    created_at: new Date().toISOString(),
-    transcript: "Au Quebec, le tri des dechets est tres important. Il y a trois types de bacs. Le bac bleu est pour les matieres recyclables comme le papier, le carton, le plastique et le verre. Le bac brun est pour les matieres compostables comme les restes de nourriture et les feuilles. Le bac noir est pour les ordures menageres normales. La collecte se fait generalement une ou deux fois par semaine selon les quartiers. Il est important de bien nettoyer les contenants avant de les mettre dans le bac de recyclage.",
-    questions: [
-      { id: "q1", question: "Combien de types de bacs y a-t-il ?", options: ["Deux", "Trois", "Quatre", "Cinq"], correct_answer: 1, explanation: "On dit 'Il y a trois types de bacs'." },
-      { id: "q2", question: "Que met-on dans le bac bleu ?", options: ["Les restes de nourriture", "Les ordures menageres", "Le papier, carton, plastique et verre", "Les feuilles"], correct_answer: 2, explanation: "On dit 'Le bac bleu est pour les matieres recyclables'." },
-      { id: "q3", question: "Que met-on dans le bac brun ?", options: ["Les matieres recyclables", "Les ordures normales", "Le verre et le metal", "Les restes de nourriture et les feuilles"], correct_answer: 3, explanation: "On dit 'Le bac brun est pour les matieres compostables comme les restes de nourriture et les feuilles'." },
-      { id: "q4", question: "A quelle frequence se fait la collecte ?", options: ["Chaque jour", "Une ou deux fois par semaine", "Une fois par mois", "Deux fois par mois"], correct_answer: 1, explanation: "On dit 'La collecte se fait generalement une ou deux fois par semaine'." },
-      { id: "q5", question: "Que faut-il faire avant de recycler les contenants ?", options: ["Les marquer d'un code", "Les dechirer", "Les nettoyer", "Les compresser"], correct_answer: 2, explanation: "On dit 'Il est important de bien nettoyer les contenants avant de les mettre dans le bac de recyclage'." },
-    ],
-  },
-  {
-    id: "l40",
-    title: "Planifier un voyage a Quebec City",
-    level: "A2",
-    topic: "Voyages",
-    audio_url: "",
-    duration: 110,
-    created_at: new Date().toISOString(),
-    transcript: "Maria et son mari planifient leurs vacances d'ete. Ils veulent aller a Quebec City pendant une semaine. Ils cherchent un hotel pas trop cher pres du Vieux-Quebec. Ils ont trouve un hotel trois etoiles pour cent vingt dollars par nuit. Ils voudraient visiter le Chateau Frontenac, les plaines d'Abraham et faire une croisiere sur le Saint-Laurent. Ils veulent aussi gouter la cuisine quebecoise traditionnelle. Ils ont reserve leurs billets de train depuis Montreal. Le trajet dure trois heures et coute cinquante dollars par personne.",
-    questions: [
-      { id: "q1", question: "Ou veulent aller Maria et son mari ?", options: ["A Montreal", "A Ottawa", "A Quebec City", "A Toronto"], correct_answer: 2, explanation: "On dit 'Ils veulent aller a Quebec City'." },
-      { id: "q2", question: "Combien de temps dureront leurs vacances ?", options: ["Cinq jours", "Une semaine", "Dix jours", "Deux semaines"], correct_answer: 1, explanation: "On dit 'pendant une semaine'." },
-      { id: "q3", question: "Combien coute l'hotel par nuit ?", options: ["100$", "110$", "120$", "130$"], correct_answer: 2, explanation: "On dit 'cent vingt dollars par nuit'." },
-      { id: "q4", question: "Quelle activite sur l'eau est prevue ?", options: ["Une balade en kayak", "Une croisiere sur le Saint-Laurent", "De la planche a voile", "De la peche"], correct_answer: 1, explanation: "On dit 'faire une croisiere sur le Saint-Laurent'." },
-      { id: "q5", question: "Combien coute le billet de train par personne ?", options: ["30$", "40$", "50$", "60$"], correct_answer: 2, explanation: "On dit 'coute cinquante dollars par personne'." },
-    ],
-  },
+          <Card className="bg-surface-50 dark:bg-surface-800/50">
+            <CardBody className="p-4">
+              <p className="text-sm text-surface-600 dark:text-surface-300 italic text-left">{selected.prompt}</p>
+            </CardBody>
+          </Card>
 
-  {
-    id: "l41",
-    title: "Une entrevue d'embauche",
-    level: "B1",
-    topic: "Travail",
-    audio_url: "",
-    duration: 145,
-    created_at: new Date().toISOString(),
-    transcript: "Bonjour Monsieur Ndiaye, prenez place. Merci. Pouvez-vous nous parler de votre parcours professionnel ? Bien sur. J'ai travaille pendant cinq ans comme comptable a Dakar au Senegal. J'ai une maitrise en sciences comptables. Je suis arrive au Quebec il y a huit mois. Depuis mon arrivee, j'ai complete une formation d'appoint en comptabilite quebecoise et j'ai passe l'examen de l'Ordre des CPA du Quebec. Pourquoi voulez-vous travailler chez nous ? Votre entreprise a une excellente reputation et j'apprecie votre engagement envers la diversite et l'inclusion. Je suis pret a apporter mon experience internationale a votre equipe. Avez-vous des questions ? Oui, quelle est la politique de formation continue de l'entreprise ?",
-    questions: [
-      { id: "q1", question: "Combien d'annees d'experience a Monsieur Ndiaye ?", options: ["3 ans", "4 ans", "5 ans", "6 ans"], correct_answer: 2, explanation: "Il dit 'J'ai travaille pendant cinq ans comme comptable a Dakar'." },
-      { id: "q2", question: "Depuis combien de temps est-il au Quebec ?", options: ["Six mois", "Huit mois", "Un an", "Deux ans"], correct_answer: 1, explanation: "Il dit 'Je suis arrive au Quebec il y a huit mois'." },
-      { id: "q3", question: "Qu'a-t-il fait depuis son arrivee au Quebec ?", options: ["Seulement cherche du travail", "Complete une formation d'appoint et passe un examen professionnel", "Etudie a l'universite", "Cree sa propre entreprise"], correct_answer: 1, explanation: "Il dit 'j'ai complete une formation d'appoint en comptabilite quebecoise et j'ai passe l'examen de l'Ordre des CPA'." },
-      { id: "q4", question: "Quelle valeur de l'entreprise apprecie-t-il ?", options: ["Son salaire eleve", "Son secteur technologique", "Son engagement envers la diversite et l'inclusion", "Sa taille internationale"], correct_answer: 2, explanation: "Il dit 'j'apprecie votre engagement envers la diversite et l'inclusion'." },
-      { id: "q5", question: "Quelle question pose-t-il a la fin ?", options: ["Le salaire offert", "Les avantages sociaux", "La politique de formation continue", "Les possibilites d'avancement"], correct_answer: 2, explanation: "Il demande 'quelle est la politique de formation continue de l'entreprise'." },
-    ],
-  },
-  {
-    id: "l42",
-    title: "Les centres de la petite enfance",
-    level: "B1",
-    topic: "Famille",
-    audio_url: "",
-    duration: 155,
-    created_at: new Date().toISOString(),
-    transcript: "Le systeme de services de garde subventionne est l'une des grandes realisations sociales du Quebec. Ces centres de la petite enfance, les CPE, accueillent les enfants de zero a cinq ans pour un tarif reduit fixe par le gouvernement, qui est actuellement de dix dollars soixante par jour. Ce tarif permet aux parents, et particulierement aux meres, de retourner sur le marche du travail plus facilement. La liste d'attente pour obtenir une place en CPE peut etre longue, parfois plusieurs annees. Il existe egalement des garderies privees subventionnees et non subventionnees. Des recherches ont montre que les enfants qui frequentent ces services ont de meilleurs resultats scolaires et sociaux.",
-    questions: [
-      { id: "q1", question: "De quel age jusqu'a quel age les CPE accueillent-ils les enfants ?", options: ["0 a 3 ans", "0 a 5 ans", "1 a 4 ans", "2 a 6 ans"], correct_answer: 1, explanation: "On dit 'les enfants de zero a cinq ans'." },
-      { id: "q2", question: "Quel est le tarif actuel par jour dans les CPE ?", options: ["8,50$", "10,60$", "12,00$", "15,00$"], correct_answer: 1, explanation: "On dit 'dix dollars soixante par jour'." },
-      { id: "q3", question: "Quel avantage principal offrent les CPE ?", options: ["Une meilleure education bilingue", "Permettre aux parents de retourner travailler", "Des repas nutritifs", "Un environnement securitaire"], correct_answer: 1, explanation: "On dit 'permettent aux parents de retourner sur le marche du travail plus facilement'." },
-      { id: "q4", question: "Combien de temps peut durer la liste d'attente ?", options: ["Quelques semaines", "Quelques mois", "Parfois plusieurs annees", "Six mois maximum"], correct_answer: 2, explanation: "On dit 'La liste d'attente peut etre longue, parfois plusieurs annees'." },
-      { id: "q5", question: "Que montrent les recherches sur les enfants frequentant les CPE ?", options: ["Ils sont moins socialises", "Ils ont de meilleurs resultats scolaires et sociaux", "Ils dependent plus de leurs parents", "Ils ont plus de difficultes en lecture"], correct_answer: 1, explanation: "On dit 'les enfants qui frequentent ces services ont de meilleurs resultats scolaires et sociaux'." },
-    ],
-  },
-  {
-    id: "l43",
-    title: "La Charte de la langue francaise",
-    level: "B1",
-    topic: "Langue et societe",
-    audio_url: "",
-    duration: 160,
-    created_at: new Date().toISOString(),
-    transcript: "Le francais est la seule langue officielle du Quebec. La Charte de la langue francaise, adoptee en 1977 et connue sous le nom de Loi 101, a profondement transforme le visage linguistique de la province. Avant cette loi, l'anglais dominait le monde des affaires a Montreal. Aujourd'hui, les entreprises de vingt-cinq employes et plus doivent fonctionner en francais. Les enfants des immigrants doivent aller a l'ecole en francais dans le secteur public. Malgre ces protections, certains experts s'inquietent du recul du francais dans la region metropolitaine de Montreal, ou les anglophones et les allophones sont plus nombreux qu'en region. La question linguistique reste l'une des plus sensibles de la politique quebecoise.",
-    questions: [
-      { id: "q1", question: "En quelle annee la Loi 101 a-t-elle ete adoptee ?", options: ["1960", "1970", "1977", "1982"], correct_answer: 2, explanation: "On dit 'adoptee en 1977'." },
-      { id: "q2", question: "Quelle etait la situation avant la Loi 101 ?", options: ["Le francais dominait", "L'anglais dominait le monde des affaires", "Les deux langues etaient egales", "L'anglais etait la langue officielle"], correct_answer: 1, explanation: "On dit 'l'anglais dominait le monde des affaires a Montreal'." },
-      { id: "q3", question: "A partir de combien d'employes les entreprises doivent-elles travailler en francais ?", options: ["10", "20", "25", "50"], correct_answer: 2, explanation: "On dit 'les entreprises de vingt-cinq employes et plus'." },
-      { id: "q4", question: "Dans quelle langue les enfants d'immigrants doivent-ils aller a l'ecole publique ?", options: ["En anglais", "En francais", "Dans leur langue maternelle", "En bilingue"], correct_answer: 1, explanation: "On dit 'doivent aller a l'ecole en francais dans le secteur public'." },
-      { id: "q5", question: "Ou le recul du francais inquiete-t-il certains experts ?", options: ["Dans tout le Quebec", "Dans la region metropolitaine de Montreal", "En Gaspesie", "Dans les zones rurales"], correct_answer: 1, explanation: "On dit 'dans la region metropolitaine de Montreal, ou les anglophones et les allophones sont plus nombreux'." },
-    ],
-  },
-  {
-    id: "l44",
-    title: "La sante preventive",
-    level: "B1",
-    topic: "Sante",
-    audio_url: "",
-    duration: 150,
-    created_at: new Date().toISOString(),
-    transcript: "La prevention en sante est devenue une priorite pour le gouvernement quebecois afin de reduire les couts du systeme de sante a long terme. Les campagnes de sensibilisation encouragent les Quebecois a adopter de saines habitudes de vie, notamment une alimentation equilibree, la pratique reguliere d'activites physiques et l'arret du tabagisme. Des programmes de depistage reguliers sont offerts pour les principales maladies chroniques comme le diabete, les maladies cardiovasculaires et certains types de cancer. Les pharmaciens jouent maintenant un role elargi, pouvant effectuer des bilans de sante et ajuster certains medicaments. La vaccination est aussi une composante cle de la sante publique au Quebec.",
-    questions: [
-      { id: "q1", question: "Pourquoi la prevention en sante est-elle prioritaire ?", options: ["Pour augmenter le nombre de medecins", "Pour reduire les couts du systeme de sante a long terme", "Pour eliminer les urgences", "Pour satisfaire les medecins"], correct_answer: 1, explanation: "On dit 'afin de reduire les couts du systeme de sante a long terme'." },
-      { id: "q2", question: "Quelles habitudes les campagnes encouragent-elles ?", options: ["Seulement faire du sport", "Alimentation equilibree, activite physique et arret du tabagisme", "Dormir plus", "Consulter souvent le medecin"], correct_answer: 1, explanation: "On dit 'une alimentation equilibree, la pratique reguliere d'activites physiques et l'arret du tabagisme'." },
-      { id: "q3", question: "Quelle maladie est mentionnee comme cible du depistage ?", options: ["Le rhume", "Le diabete", "La depression", "L'osteoporose"], correct_answer: 1, explanation: "On dit 'le diabete, les maladies cardiovasculaires et certains types de cancer'." },
-      { id: "q4", question: "Quel nouveau role ont les pharmaciens ?", options: ["Faire des operations", "Poser des diagnostics", "Effectuer des bilans de sante et ajuster des medicaments", "Remplacer les medecins"], correct_answer: 2, explanation: "On dit 'pouvant effectuer des bilans de sante et ajuster certains medicaments'." },
-      { id: "q5", question: "Quel programme de vaccination est mentionne ?", options: ["Contre le VIH", "Contre la tuberculose", "Contre la grippe", "Contre le cancer"], correct_answer: 2, explanation: "On mentionne la vaccination comme 'composante cle de la sante publique'." },
-    ],
-  },
-  {
-    id: "l45",
-    title: "Le logement etudiant a Montreal",
-    level: "B1",
-    topic: "Education",
-    audio_url: "",
-    duration: 148,
-    created_at: new Date().toISOString(),
-    transcript: "Trouver un logement etudiant abordable a Montreal est devenu un veritable defi ces dernieres annees. Les loyers ont augmente de facon significative, et les etudiants, qui ont souvent un budget limite, sont particulierement touches. La plupart des universites proposent des residences sur leur campus, mais les places sont limitees et souvent reservees aux etudiants de premiere annee ou aux etudiants internationaux. Pour les autres, il faut chercher un appartement sur le marche prive. La colocation est une solution tres populaire qui permet de partager les frais. Certains etudiants choisissent de s'eloigner du centre-ville pour trouver des loyers moins eleves, mais ils doivent alors prevoir plus de temps de transport.",
-    questions: [
-      { id: "q1", question: "Comment est la situation du logement etudiant a Montreal ?", options: ["Facile et abordable", "Devenue un veritable defi", "Stable depuis plusieurs annees", "Meilleure qu'ailleurs au Canada"], correct_answer: 1, explanation: "On dit 'Trouver un logement etudiant abordable...est devenu un veritable defi'." },
-      { id: "q2", question: "Pour qui les residences universitaires sont-elles souvent reservees ?", options: ["Tous les etudiants", "Seulement les masters", "Les etudiants de premiere annee et internationaux", "Les etudiants les plus meritants"], correct_answer: 2, explanation: "On dit 'souvent reservees aux etudiants de premiere annee ou aux etudiants internationaux'." },
-      { id: "q3", question: "Qu'est-ce que la colocation permet ?", options: ["D'etudier ensemble", "De partager les frais de logement", "D'avoir plus d'espace", "D'eviter les proprietaires"], correct_answer: 1, explanation: "On dit 'permet de partager les frais'." },
-      { id: "q4", question: "Quel inconvenient y a-t-il a s'eloigner du centre-ville ?", options: ["Les loyers sont aussi chers", "Les quartiers sont moins agreables", "Plus de temps de transport", "Moins de commerces"], correct_answer: 2, explanation: "On dit 'ils doivent alors prevoir plus de temps de transport'." },
-      { id: "q5", question: "Qui est particulierement touche par la hausse des loyers ?", options: ["Les familles", "Les retraites", "Les etudiants avec un budget limite", "Les nouveaux immigrants"], correct_answer: 2, explanation: "On dit 'les etudiants, qui ont souvent un budget limite, sont particulierement touches'." },
-    ],
-  },
-  {
-    id: "l46",
-    title: "Temoignage d'un ingenieur immigrant",
-    level: "B1",
-    topic: "Immigration",
-    audio_url: "",
-    duration: 165,
-    created_at: new Date().toISOString(),
-    transcript: "Je m'appelle Youssef. J'etais ingenieur en genie civil au Maroc depuis dix ans. Quand je suis arrive au Quebec il y a trois ans, j'ai decouvert que mon diplome n'etait pas automatiquement reconnu. J'ai du passer par l'Ordre des ingenieurs du Quebec pour faire evaluer mes competences. Ils m'ont demande de completer certains cours et de faire un stage de six mois. C'etait decourageant mais j'ai persevere. Aujourd'hui, je suis ingenieur diplome au Quebec et je travaille dans une grande firme de Montreal. Mon conseil aux nouveaux arrivants : commencez les demarches de reconnaissance de vos diplomes avant meme d'arriver au Quebec.",
-    questions: [
-      { id: "q1", question: "Quelle etait la profession de Youssef au Maroc ?", options: ["Medecin", "Architecte", "Ingenieur en genie civil", "Comptable"], correct_answer: 2, explanation: "Il dit 'J'etais ingenieur en genie civil au Maroc'." },
-      { id: "q2", question: "Depuis combien d'annees travaillait-il dans sa profession ?", options: ["5 ans", "8 ans", "10 ans", "15 ans"], correct_answer: 2, explanation: "Il dit 'au Maroc depuis dix ans'." },
-      { id: "q3", question: "Quel organisme a evalue ses competences ?", options: ["Le Ministere de l'Education", "L'Ordre des ingenieurs du Quebec", "Une universite", "La CNESST"], correct_answer: 1, explanation: "Il dit 'l'Ordre des ingenieurs du Quebec pour faire evaluer mes competences'." },
-      { id: "q4", question: "Qu'a-t-on exige de lui ?", options: ["Seulement un examen ecrit", "Completer des cours et faire un stage de six mois", "Refaire toute sa formation", "Passer un test de francais"], correct_answer: 1, explanation: "Il dit 'de completer certains cours et de faire un stage de six mois'." },
-      { id: "q5", question: "Quel conseil donne-t-il aux nouveaux arrivants ?", options: ["De changer de profession", "D'apprendre l'anglais en priorite", "De commencer les demarches avant d'arriver au Quebec", "De s'inscrire a l'universite a l'arrivee"], correct_answer: 2, explanation: "Il dit 'commencez les demarches de reconnaissance de vos diplomes avant meme d'arriver au Quebec'." },
-    ],
-  },
-  {
-    id: "l47",
-    title: "Avantages et limites du teletravail",
-    level: "B1",
-    topic: "Travail",
-    audio_url: "",
-    duration: 158,
-    created_at: new Date().toISOString(),
-    transcript: "Le teletravail a completement transforme ma vie professionnelle. Depuis deux ans, je travaille de chez moi trois jours par semaine et je vais au bureau seulement deux fois par semaine. Le principal avantage est que j'economise deux heures par jour en transport. Je me sens aussi plus productif dans mon bureau a domicile. Par contre, il est parfois difficile de separer le travail et la vie personnelle. On a tendance a travailler plus longtemps quand on est chez soi. La solitude peut aussi etre un probleme. Je manque parfois des interactions spontanees avec mes collegues. Mais dans l'ensemble, je ne voudrais pas revenir au travail en presentiel a temps plein.",
-    questions: [
-      { id: "q1", question: "Combien de jours par semaine travaille-t-il en teletravail ?", options: ["Deux jours", "Trois jours", "Quatre jours", "Cinq jours"], correct_answer: 1, explanation: "Il dit 'je travaille de chez moi trois jours par semaine'." },
-      { id: "q2", question: "Combien de temps economise-t-il en transport par jour ?", options: ["Une heure", "Deux heures", "Trois heures", "Quatre heures"], correct_answer: 1, explanation: "Il dit 'j'economise deux heures par jour en transport'." },
-      { id: "q3", question: "Quel est le principal avantage du teletravail ?", options: ["Un meilleur salaire", "L'economie de temps de transport", "Plus de flexibilite horaire", "Un meilleur equipement"], correct_answer: 1, explanation: "Il dit 'Le principal avantage est que j'economise deux heures par jour en transport'." },
-      { id: "q4", question: "Quel inconvenient du teletravail mentionne-t-il ?", options: ["Le bruit a la maison", "La difficulte de separer travail et vie personnelle", "Le manque d'internet", "Des salaires plus bas"], correct_answer: 1, explanation: "Il dit 'il est parfois difficile de separer le travail et la vie personnelle'." },
-      { id: "q5", question: "Voudrait-il revenir au travail en presentiel a temps plein ?", options: ["Oui, tout de suite", "Oui, dans un an", "Non, pas du tout", "Il n'est pas sur"], correct_answer: 2, explanation: "Il dit 'je ne voudrais pas revenir au travail en presentiel a temps plein'." },
-    ],
-  },
-  {
-    id: "l48",
-    title: "Patrimoine et festivals a Quebec City",
-    level: "B1",
-    topic: "Culture",
-    audio_url: "",
-    duration: 155,
-    created_at: new Date().toISOString(),
-    transcript: "Quebec City est une ville riche en histoire et en culture. Le Vieux-Quebec, inscrit au patrimoine mondial de l'UNESCO en 1985, est le seul endroit en Amerique du Nord qui conserve ses fortifications. Chaque ete, la ville accueille des evenements culturels importants comme le Festival d'ete de Quebec, qui est l'un des plus grands evenements musicaux en plein air du monde. Le Musee national des beaux-arts du Quebec propose des collections permanentes et des expositions temporaires. Le Carnaval de Quebec, qui se deroule en fevrier, est le plus grand carnaval hivernal au monde et attire des centaines de milliers de visiteurs chaque annee.",
-    questions: [
-      { id: "q1", question: "En quelle annee le Vieux-Quebec a-t-il ete inscrit a l'UNESCO ?", options: ["1975", "1980", "1985", "1990"], correct_answer: 2, explanation: "On dit 'inscrit au patrimoine mondial de l'UNESCO en 1985'." },
-      { id: "q2", question: "Quelle est la particularite du Vieux-Quebec en Amerique du Nord ?", options: ["C'est la plus vieille ville", "Il conserve ses fortifications", "Il a le plus vieux chateau", "C'est la ville la plus froide"], correct_answer: 1, explanation: "On dit 'le seul endroit en Amerique du Nord qui conserve ses fortifications'." },
-      { id: "q3", question: "Qu'est-ce que le Festival d'ete de Quebec ?", options: ["Un festival de cinema", "Un festival gastronomique", "L'un des plus grands evenements musicaux en plein air au monde", "Un festival de theatre"], correct_answer: 2, explanation: "On dit 'l'un des plus grands evenements musicaux en plein air du monde'." },
-      { id: "q4", question: "Quand se deroule le Carnaval de Quebec ?", options: ["En decembre", "En janvier", "En fevrier", "En mars"], correct_answer: 2, explanation: "On dit 'qui se deroule en fevrier'." },
-      { id: "q5", question: "Comment est classe le Carnaval de Quebec ?", options: ["Le plus vieux carnaval du monde", "Le plus colore carnaval", "Le plus grand carnaval hivernal au monde", "Le deuxieme plus grand carnaval"], correct_answer: 2, explanation: "On dit 'le plus grand carnaval hivernal au monde'." },
-    ],
-  },
-  {
-    id: "l49",
-    title: "L'agriculture face aux changements climatiques",
-    level: "B1",
-    topic: "Environnement",
-    audio_url: "",
-    duration: 160,
-    created_at: new Date().toISOString(),
-    transcript: "Les changements climatiques ont des impacts importants sur l'agriculture quebecoise. D'un cote, l'allongement de la saison de croissance permet de cultiver de nouvelles varietes de fruits et legumes qui n'etaient pas possibles auparavant. Des producteurs ont commence a cultiver du mais, des tomates et meme certains types de vignes. De l'autre cote, les evenements meteorologiques extremes, comme les episodes de secheresse et les pluies intenses, menacent les recoltes. Les agriculteurs doivent adapter leurs pratiques, notamment en investissant dans des systemes d'irrigation plus efficaces et en choisissant des varietes plus resistantes. Le gouvernement offre des programmes d'aide financiere aux agriculteurs qui veulent moderniser leurs pratiques.",
-    questions: [
-      { id: "q1", question: "Quel avantage climatique les agriculteurs observent-ils ?", options: ["Moins de gel en hiver", "Un allongement de la saison de croissance", "Plus de pluie au printemps", "Des hivers plus courts"], correct_answer: 1, explanation: "On dit 'l'allongement de la saison de croissance permet de cultiver de nouvelles varietes'." },
-      { id: "q2", question: "Quel nouveau produit agricole est mentionne ?", options: ["Des oranges", "Des bananes", "Des vignes", "Des olives"], correct_answer: 2, explanation: "On dit 'meme certains types de vignes'." },
-      { id: "q3", question: "Quels evenements meteorologiques menacent les recoltes ?", options: ["Les tempetes hivernales", "Les episodes de secheresse et les pluies intenses", "Les orages d'ete", "Le verglas"], correct_answer: 1, explanation: "On dit 'les episodes de secheresse et les pluies intenses, menacent les recoltes'." },
-      { id: "q4", question: "Comment les agriculteurs doivent-ils s'adapter ?", options: ["En abandonnant l'agriculture", "En important plus de produits", "En investissant dans des systemes d'irrigation et des varietes resistantes", "En reduisant leur production"], correct_answer: 2, explanation: "On dit 'investissant dans des systemes d'irrigation plus efficaces et en choisissant des varietes plus resistantes'." },
-      { id: "q5", question: "Qu'offre le gouvernement aux agriculteurs ?", options: ["Des terres gratuites", "Des programmes d'aide financiere pour moderniser leurs pratiques", "Des garanties de prix", "Des formations obligatoires"], correct_answer: 1, explanation: "On dit 'Le gouvernement offre des programmes d'aide financiere aux agriculteurs qui veulent moderniser leurs pratiques'." },
-    ],
-  },
-  {
-    id: "l50",
-    title: "L'aide medicale a mourir au Quebec",
-    level: "B1",
-    topic: "Sante et ethique",
-    audio_url: "",
-    duration: 162,
-    created_at: new Date().toISOString(),
-    transcript: "L'aide medicale a mourir est encadree au Quebec par une loi adoptee en 2015. Cette loi permet aux personnes atteintes d'une maladie grave et incurable de demander une aide medicale pour mourir dans la dignite. Le Quebec a ete la premiere province canadienne a legaliser cette pratique. Pour faire une demande, le patient doit etre majeur, avoir la capacite de consentir et souffrir d'une affection grave. Les souffrances doivent etre constantes et insupportables. Le medecin doit aussi obtenir un deuxieme avis d'un autre medecin. Depuis l'entree en vigueur de la loi, plusieurs milliers de personnes ont eu recours a ce service. Le debat ethique reste vif dans la societe.",
-    questions: [
-      { id: "q1", question: "En quelle annee la loi sur l'aide medicale a mourir a-t-elle ete adoptee ?", options: ["2012", "2013", "2015", "2017"], correct_answer: 2, explanation: "On dit 'une loi adoptee en 2015'." },
-      { id: "q2", question: "Quel rang le Quebec occupe-t-il parmi les provinces sur ce sujet ?", options: ["Pas le premier", "La premiere province a legaliser", "La deuxieme province", "La troisieme province"], correct_answer: 1, explanation: "On dit 'Le Quebec a ete la premiere province canadienne a legaliser cette pratique'." },
-      { id: "q3", question: "Quelle condition d'age doit remplir le patient ?", options: ["Avoir 65 ans ou plus", "Etre majeur", "Avoir entre 20 et 80 ans", "Aucune condition d'age"], correct_answer: 1, explanation: "On dit 'le patient doit etre majeur'." },
-      { id: "q4", question: "Que doit obtenir le medecin en plus ?", options: ["L'accord de la famille", "L'approbation d'un juge", "Un deuxieme avis d'un autre medecin", "L'autorisation gouvernementale"], correct_answer: 2, explanation: "On dit 'Le medecin doit aussi obtenir un deuxieme avis d'un autre medecin'." },
-      { id: "q5", question: "Comment est qualifie le debat ethique autour de cette loi ?", options: ["Termine", "Marginal", "Vif dans la societe", "Inexistant"], correct_answer: 2, explanation: "On dit 'Le debat ethique reste vif dans la societe'." },
-    ],
-  },
+          <div className="flex gap-3 justify-center">
+            <Button variant="danger" size="lg" icon={<Square size={18} />} onClick={stopRecording}>
+              Arreter l'enregistrement
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
-  {
-    id: "l51",
-    title: "Montreal, capitale mondiale de l'IA",
-    level: "B2",
-    topic: "Technologie",
-    audio_url: "",
-    duration: 185,
-    created_at: new Date().toISOString(),
-    transcript: "Montreal s'est imposee comme l'une des capitales mondiales de l'intelligence artificielle. Cette reputation repose sur des decennies de recherche academique de haut niveau, notamment les travaux pionniers sur les reseaux de neurones profonds du professeur Yoshua Bengio et de son equipe au MILA, l'Institut quebecois d'intelligence artificielle. Ce centre de recherche est devenu un aimant pour les talents internationaux et a attire des investissements massifs de grandes entreprises technologiques mondiales. Cependant, le developpement rapide de l'IA souleve des questions ethiques importantes concernant l'emploi, la vie privee et les biais algorithmiques. La Declaration de Montreal pour un developpement responsable de l'IA est devenue un document de reference international.",
-    questions: [
-      { id: "q1", question: "Sur quoi repose la reputation de Montreal en IA ?", options: ["Ses entreprises privees uniquement", "Des decennies de recherche academique de haut niveau", "Les investissements gouvernementaux seulement", "Sa situation geographique"], correct_answer: 1, explanation: "On dit 'Cette reputation repose sur des decennies de recherche academique de haut niveau'." },
-      { id: "q2", question: "Qu'est-ce que le MILA ?", options: ["Un parc technologique", "L'Institut quebecois d'intelligence artificielle", "Un programme gouvernemental", "Une entreprise privee"], correct_answer: 1, explanation: "On dit 'le MILA, l'Institut quebecois d'intelligence artificielle'." },
-      { id: "q3", question: "Quel chercheur est mentionne ?", options: ["Elon Musk", "Sam Altman", "Yoshua Bengio", "Geoffrey Hinton"], correct_answer: 2, explanation: "On dit 'le professeur Yoshua Bengio et de son equipe'." },
-      { id: "q4", question: "Quelles questions ethiques l'IA souleve-t-elle ?", options: ["L'energie consommee par les serveurs", "L'emploi, la vie privee et les biais algorithmiques", "Le cout des technologies", "La propriete des algorithmes"], correct_answer: 1, explanation: "On dit 'questions ethiques importantes concernant l'emploi, la vie privee et les biais algorithmiques'." },
-      { id: "q5", question: "Quelle est l'importance de la Declaration de Montreal sur l'IA ?", options: ["Elle interdit certaines formes d'IA", "C'est un document de reference international", "Elle reglemente les entreprises", "Elle finance la recherche en IA"], correct_answer: 1, explanation: "On dit 'est devenue un document de reference international'." },
-    ],
-  },
-  {
-    id: "l52",
-    title: "Les causes de la crise du logement",
-    level: "B2",
-    topic: "Logement",
-    audio_url: "",
-    duration: 180,
-    created_at: new Date().toISOString(),
-    transcript: "La crise du logement que vivent les grandes villes quebecoises est le resultat de plusieurs facteurs cumules. La construction de nouveaux logements locatifs abordables a ete insuffisante pendant plusieurs decennies, alors que la population continuait de croitre, notamment grace a l'immigration. La hausse des taux d'interet a rendu l'achat d'une propriete inaccessible pour une large partie de la population, augmentant la pression sur le marche locatif. La speculation immobiliere a transforme une partie du parc de logements en actifs financiers plutot qu'en lieu de vie. Des solutions comme le zonage inclusif, qui oblige les promoteurs a inclure une proportion de logements abordables dans leurs projets, sont avancees par les experts.",
-    questions: [
-      { id: "q1", question: "Quel facteur a contribue a la crise du logement ?", options: ["La diminution de la population", "Construction insuffisante face a une population croissante", "Un surplus de logements vides", "Des loyers trop bas"], correct_answer: 1, explanation: "On dit 'La construction de nouveaux logements locatifs abordables a ete insuffisante pendant plusieurs decennies'." },
-      { id: "q2", question: "Comment la hausse des taux d'interet affecte-t-elle le logement ?", options: ["Elle reduit les prix des loyers", "Elle rend l'achat inaccessible et augmente la pression locative", "Elle encourage la construction", "Elle favorise les premiers acheteurs"], correct_answer: 1, explanation: "On dit 'La hausse des taux d'interet a rendu l'achat inaccessible...augmentant la pression sur le marche locatif'." },
-      { id: "q3", question: "Quel probleme la speculation immobiliere cree-t-elle ?", options: ["Des prix trop bas", "La transformation des logements en actifs financiers", "Trop de nouveaux logements", "Des conflits entre proprietaires"], correct_answer: 1, explanation: "On dit 'a transforme une partie du parc de logements en actifs financiers plutot qu'en lieu de vie'." },
-      { id: "q4", question: "Qu'est-ce que le zonage inclusif ?", options: ["Des zones reservees aux logements sociaux", "Obliger les promoteurs a inclure des logements abordables", "Limiter la hauteur des immeubles", "Creer des zones sans speculation"], correct_answer: 1, explanation: "On dit 'qui oblige les promoteurs a inclure une proportion de logements abordables dans leurs projets'." },
-      { id: "q5", question: "Quel facteur d'immigration est mentionne ?", options: ["L'immigration a reduit la demande", "L'immigration a contribue a la croissance de la population", "L'immigration a cree trop de logements", "L'immigration a stabilise les loyers"], correct_answer: 1, explanation: "On dit 'la population continuait de croitre, notamment grace a l'immigration'." },
-    ],
-  },
-  {
-    id: "l53",
-    title: "L'identite en contexte migratoire",
-    level: "B2",
-    topic: "Immigration",
-    audio_url: "",
-    duration: 185,
-    created_at: new Date().toISOString(),
-    transcript: "L'experience de l'immigration place inevitablement les individus devant des questions profondes sur leur identite et leur appartenance. La societe quebecoise, avec sa specificite culturelle et linguistique en Amerique du Nord, offre un contexte particulier a cette experience. Les immigrants doivent naviguer entre la preservation de leur culture d'origine et l'integration aux codes et valeurs de la societe d'accueil. Cette navigation n'est pas binaire mais plutot un processus de negociation continue qui produit des identites hybrides et plurielles. Des recherches sociologiques suggerent que les individus qui parviennent a construire une identite biculturelle solide ont de meilleurs outcomes en matiere de sante mentale et d'integration sociale.",
-    questions: [
-      { id: "q1", question: "Quel contexte particulier le Quebec offre-t-il ?", options: ["Un contexte majoritairement anglophone", "Une specificite culturelle et linguistique en Amerique du Nord", "Un contexte multiculturel sans identite dominante", "Un environnement bilingue equilibre"], correct_answer: 1, explanation: "On dit 'sa specificite culturelle et linguistique en Amerique du Nord'." },
-      { id: "q2", question: "Comment est decrit le processus d'integration identitaire ?", options: ["Comme un choix binaire entre deux cultures", "Comme un processus de negociation continue produisant des identites hybrides", "Comme une assimilation complete", "Comme un rejet de la culture d'accueil"], correct_answer: 1, explanation: "On dit 'un processus de negociation continue qui produit des identites hybrides et plurielles'." },
-      { id: "q3", question: "Entre quoi les immigrants naviguent-ils ?", options: ["Langue et culture", "Preservation de leur culture d'origine et integration a la societe d'accueil", "Travail et vie sociale", "Famille et amis"], correct_answer: 1, explanation: "On dit 'naviguer entre la preservation de leur culture d'origine et l'integration aux codes et valeurs de la societe d'accueil'." },
-      { id: "q4", question: "Quelle strategie identitaire est privilegiee par les recherches ?", options: ["L'assimilation complete", "Le repli communautaire", "La construction d'une identite biculturelle solide", "Le maintien exclusif de la culture d'origine"], correct_answer: 2, explanation: "On dit 'les individus qui parviennent a construire une identite biculturelle solide...ont de meilleurs outcomes'." },
-      { id: "q5", question: "Dans quels domaines les individus biculturels ont-ils de meilleurs resultats ?", options: ["Sur le plan economique uniquement", "En sante mentale et en integration sociale", "Dans leurs etudes uniquement", "Sur le plan professionnel uniquement"], correct_answer: 1, explanation: "On dit 'de meilleurs outcomes en matiere de sante mentale et d'integration sociale'." },
-    ],
-  },
-  {
-    id: "l54",
-    title: "Le financement public de la culture",
-    level: "B2",
-    topic: "Culture",
-    audio_url: "",
-    duration: 178,
-    created_at: new Date().toISOString(),
-    transcript: "Le financement public de la culture est un principe fondateur de la politique culturelle quebecoise. L'Etat quebecois considere que la creation artistique est un bien commun qui ne peut etre entierement soumis aux lois du marche. Des organismes comme le Conseil des arts et des lettres du Quebec et le Ministere de la Culture distribuent des centaines de millions de dollars par annee sous forme de subventions, bourses et partenariats. Ces fonds soutiennent aussi bien les grandes institutions culturelles que les artistes emergents et les petites compagnies de theatre. Certains critiques argumentent que les criteres d'attribution favorisent les projets facilement evaluables au detriment de la prise de risque artistique.",
-    questions: [
-      { id: "q1", question: "Pourquoi l'Etat quebecois finance-t-il la culture ?", options: ["Pour des raisons commerciales", "Parce que la creation artistique est un bien commun ne pouvant etre soumis au seul marche", "Pour concurrencer les provinces anglaises", "Pour des raisons touristiques"], correct_answer: 1, explanation: "On dit 'la creation artistique est un bien commun qui ne peut etre entierement soumis aux lois du marche'." },
-      { id: "q2", question: "Quel organisme distribue des subventions culturelles ?", options: ["Telefilm Canada uniquement", "Radio-Canada", "Le Conseil des arts et des lettres du Quebec", "Le Festival de Jazz"], correct_answer: 2, explanation: "On dit 'Des organismes comme le Conseil des arts et des lettres du Quebec'." },
-      { id: "q3", question: "Qui beneficie de ces fonds ?", options: ["Seulement les grandes institutions", "Seulement les artistes emergents", "Les grandes institutions et les artistes emergents", "Principalement le cinema"], correct_answer: 2, explanation: "On dit 'aussi bien les grandes institutions culturelles que les artistes emergents et les petites compagnies'." },
-      { id: "q4", question: "Quelle critique est formulee contre les subventions ?", options: ["Elles sont trop elevees", "Elles favorisent les projets evaluables au detriment de la prise de risque", "Elles ne beneficient qu'a Montreal", "Elles sont accordees sans criteres"], correct_answer: 1, explanation: "On dit 'les criteres d'attribution favorisent les projets facilement evaluables au detriment de la prise de risque artistique'." },
-      { id: "q5", question: "Sous quelle forme sont distribues les fonds culturels ?", options: ["Uniquement des prets", "Subventions, bourses et partenariats", "Uniquement des bourses", "Des prets et des subventions"], correct_answer: 1, explanation: "On dit 'sous forme de subventions, bourses et partenariats'." },
-    ],
-  },
-  {
-    id: "l55",
-    title: "La vie privee a l'ere numerique",
-    level: "B2",
-    topic: "Technologie",
-    audio_url: "",
-    duration: 182,
-    created_at: new Date().toISOString(),
-    transcript: "La multiplication des objets connectes et des applications mobiles a engendre une collecte massive de donnees personnelles dont la plupart des utilisateurs ne prennent pas la pleine mesure. Chaque fois que nous utilisons une application gratuite, nous payons en realite avec nos donnees. Ces donnees sont utilisees pour cibler la publicite et alimenter des modeles algorithmiques qui influencent nos comportements et nos opinions. Le consentement eclaire des utilisateurs est theoriquement requis, mais les politiques de confidentialite sont si longues qu'elles sont rarement lues. La Loi 25 sur la protection des renseignements personnels, adoptee au Quebec, tente de reequilibrer le rapport de force entre les utilisateurs et les entreprises technologiques.",
-    questions: [
-      { id: "q1", question: "Avec quoi les utilisateurs paient-ils les applications gratuites ?", options: ["Avec leur temps", "Avec leurs donnees personnelles", "Avec leur attention publicitaire", "Avec leurs contacts"], correct_answer: 1, explanation: "On dit 'nous payons en realite avec nos donnees'." },
-      { id: "q2", question: "A quoi servent les donnees collectees ?", options: ["Uniquement a la publicite", "Cibler la publicite et alimenter des algorithmes influencant nos comportements", "A ameliorer les applications", "A des recherches scientifiques"], correct_answer: 1, explanation: "On dit 'pour cibler la publicite et alimenter des modeles algorithmiques qui influencent nos comportements et nos opinions'." },
-      { id: "q3", question: "Pourquoi le consentement eclaire est-il theorique ?", options: ["Les lois ne l'exigent pas", "Les politiques de confidentialite sont trop longues et rarement lues", "Les utilisateurs ne se soucient pas de leur vie privee", "Les entreprises ignorent les reglements"], correct_answer: 1, explanation: "On dit 'les politiques de confidentialite sont si longues qu'elles sont rarement lues'." },
-      { id: "q4", question: "Que tente de faire la Loi 25 ?", options: ["Interdire les applications etrangeres", "Reequilibrer le rapport de force entre utilisateurs et entreprises", "Taxer les donnees collectees", "Imposer des applications quebecoises"], correct_answer: 1, explanation: "On dit 'tente de reequilibrer le rapport de force entre les utilisateurs et les entreprises technologiques'." },
-      { id: "q5", question: "Quand la Loi 25 a-t-elle ete adoptee ?", options: ["Elle a ete adoptee recemment au Quebec", "Elle est en cours de discussion", "Elle n'a pas encore ete adoptee", "Elle est une loi federale"], correct_answer: 0, explanation: "On dit 'La Loi 25 sur la protection des renseignements personnels, adoptee au Quebec'." },
-    ],
-  },
-  {
-    id: "l56",
-    title: "Le systeme de retraite quebecois",
-    level: "B2",
-    topic: "Economie",
-    audio_url: "",
-    duration: 186,
-    created_at: new Date().toISOString(),
-    transcript: "Le systeme de retraite au Quebec repose sur plusieurs piliers complementaires. Le premier pilier est la Pension de securite de la vieillesse federale, versee a tous les Canadiens de 65 ans et plus. Le deuxieme pilier est le Regime de rentes du Quebec, auquel cotisent tous les travailleurs quebecois et leurs employeurs. Le troisieme pilier est l'epargne individuelle, encouragee via des vehicules fiscaux avantageux comme le REER, le Regime enregistre d'epargne-retraite, et le CELI, le Compte d'epargne libre d'impot. Le vieillissement de la population cree une pression croissante sur ce systeme. La Caisse de depot et placement du Quebec gere une partie importante des fonds de retraite quebecois.",
-    questions: [
-      { id: "q1", question: "Sur combien de piliers repose le systeme de retraite au Quebec ?", options: ["Deux", "Trois", "Quatre", "Cinq"], correct_answer: 1, explanation: "Le texte enumere trois piliers." },
-      { id: "q2", question: "Quel est le premier pilier ?", options: ["Le REER", "Le Regime de rentes du Quebec", "La Pension de securite de la vieillesse federale", "La Caisse de depot"], correct_answer: 2, explanation: "On dit 'Le premier pilier est la Pension de securite de la vieillesse federale'." },
-      { id: "q3", question: "A partir de quel age recoit-on la pension de securite ?", options: ["60 ans", "62 ans", "65 ans", "67 ans"], correct_answer: 2, explanation: "On dit 'versee a tous les Canadiens de 65 ans et plus'." },
-      { id: "q4", question: "Que signifie CELI ?", options: ["Cotisation d'epargne libre investissement", "Compte d'epargne libre d'impot", "Capital epargne logement individuel", "Credit d'epargne limite et individuel"], correct_answer: 1, explanation: "On dit 'le CELI, le Compte d'epargne libre d'impot'." },
-      { id: "q5", question: "Quel est le role de la Caisse de depot et placement du Quebec ?", options: ["Distribuer les pensions", "Collecter les cotisations", "Gerer une partie des fonds de retraite quebecois", "Fixer les taux de cotisation"], correct_answer: 2, explanation: "On dit 'La Caisse de depot et placement du Quebec gere une partie importante des fonds de retraite quebecois'." },
-    ],
-  },
-  {
-    id: "l57",
-    title: "Les pouvoirs speciaux du Quebec en immigration",
-    level: "B2",
-    topic: "Immigration",
-    audio_url: "",
-    duration: 188,
-    created_at: new Date().toISOString(),
-    transcript: "Le Quebec est la seule province canadienne a avoir obtenu des pouvoirs specifiques en matiere de selection des immigrants, formalises dans l'Accord Canada-Quebec de 1991. Cet accord reconnait le droit du Quebec de selectionner ses propres immigrants pour les categories economiques, notamment les travailleurs qualifies. Le systeme de points quebecois evalue les candidats selon des criteres comme la maitrise du francais, le niveau d'education, l'experience professionnelle et l'age. Cependant, les demandes d'asile et les immigrants du regroupement familial restent sous juridiction federale. Les cibles d'immigration sont regulierement debattues entre partisans d'une immigration elevee pour repondre aux besoins economiques et ceux qui s'inquietent des capacites d'integration.",
-    questions: [
-      { id: "q1", question: "Quel accord donne au Quebec des pouvoirs en immigration ?", options: ["L'Accord de Charlottetown", "L'Accord Canada-Quebec de 1991", "La Constitution de 1982", "L'Accord du Lac Meech"], correct_answer: 1, explanation: "On dit 'l'Accord Canada-Quebec de 1991'." },
-      { id: "q2", question: "Pour quelle categorie d'immigrants le Quebec peut-il selectionner ?", options: ["Tous les immigrants", "Les refugies uniquement", "Les immigrants economiques, notamment les travailleurs qualifies", "Les immigrants du regroupement familial"], correct_answer: 2, explanation: "On dit 'le droit du Quebec de selectionner ses propres immigrants pour les categories economiques'." },
-      { id: "q3", question: "Quel critere est mentionne en premier dans le systeme de points ?", options: ["L'age", "L'experience professionnelle", "La maitrise du francais", "Le niveau d'education"], correct_answer: 2, explanation: "On dit 'des criteres comme la maitrise du francais, le niveau d'education'." },
-      { id: "q4", question: "Qu'est-ce qui reste sous juridiction federale ?", options: ["Les travailleurs qualifies", "Les immigrants economiques", "Les demandes d'asile et le regroupement familial", "Tous les immigrants"], correct_answer: 2, explanation: "On dit 'les demandes d'asile et les immigrants du regroupement familial restent sous juridiction federale'." },
-      { id: "q5", question: "Quel argument est avance par les partisans d'une immigration elevee ?", options: ["Enrichissement culturel seulement", "Necessite economique face aux besoins du marche du travail", "Compensation des emigrations", "Augmentation des revenus fiscaux"], correct_answer: 1, explanation: "On dit 'partisans d'une immigration elevee pour repondre aux besoins economiques'." },
-    ],
-  },
-  {
-    id: "l58",
-    title: "Les objectifs climatiques du Quebec",
-    level: "B2",
-    topic: "Environnement",
-    audio_url: "",
-    duration: 182,
-    created_at: new Date().toISOString(),
-    transcript: "La question environnementale est devenue l'un des enjeux centraux de la politique quebecoise. Le Quebec s'est dote d'objectifs ambitieux de reduction des emissions de gaz a effet de serre, visant une reduction de trente-sept virgule cinq pour cent par rapport aux niveaux de 1990 d'ici 2030. La mise en oeuvre de ces objectifs passe par l'electrification des transports, le soutien aux energies renouvelables et des programmes de renovation energetique des batiments. Un systeme de plafonnement et echange de droits d'emission, appele le marche carbone, lie le Quebec a la Californie dans le cadre d'une cooperation transfrontaliere innovante. Les partis politiques ont ete obliges d'integrer des plateformes environnementales credibles sous la pression des mouvements citoyens.",
-    questions: [
-      { id: "q1", question: "Quel objectif de reduction des emissions le Quebec vise-t-il d'ici 2030 ?", options: ["20%", "30%", "37,5%", "50%"], correct_answer: 2, explanation: "On dit 'une reduction de trente-sept virgule cinq pour cent...d'ici 2030'." },
-      { id: "q2", question: "Qu'est-ce que le marche carbone ?", options: ["Un supermarche bio", "Un marche financier agricole", "Un systeme de plafonnement et echange de droits d'emission", "Une taxe sur le carbone"], correct_answer: 2, explanation: "On dit 'Un systeme de plafonnement et echange de droits d'emission, appele le marche carbone'." },
-      { id: "q3", question: "Avec quel territoire le Quebec est-il lie dans son marche carbone ?", options: ["L'Ontario", "New York", "La Californie", "Le Vermont"], correct_answer: 2, explanation: "On dit 'lie le Quebec a la Californie dans le cadre d'une cooperation transfrontaliere'." },
-      { id: "q4", question: "Quel est l'un des moyens pour atteindre les objectifs climatiques ?", options: ["La construction de routes plus larges", "L'electrification des transports", "L'expansion du reseau autoroutier", "L'augmentation de la production de charbon"], correct_answer: 1, explanation: "On dit 'La mise en oeuvre...passe par l'electrification des transports'." },
-      { id: "q5", question: "Qui a pousse les partis politiques a integrer des plateformes environnementales ?", options: ["Les medias internationaux", "Les grandes entreprises", "Les mouvements citoyens", "Le gouvernement federal"], correct_answer: 2, explanation: "On dit 'sous la pression des mouvements citoyens'." },
-    ],
-  },
-  {
-    id: "l59",
-    title: "La reconciliation avec les Autochtones",
-    level: "B2",
-    topic: "Societe",
-    audio_url: "",
-    duration: 186,
-    created_at: new Date().toISOString(),
-    transcript: "La reconciliation entre le Quebec et les Premieres Nations est un processus long et douloureux qui tente de reparer des siecles d'injustices. Les revelations sur le systeme des pensionnats, ou des enfants autochtones ont ete arraches a leurs familles et forces d'abandonner leur langue et leur culture, ont profondement choque la societe canadienne. Des nations comme les Cris, les Inuit et les Atikamekw negocient des ententes de nation a nation sur des questions comme l'autodetermination, la gestion des ressources naturelles et les services sociaux et scolaires. La reconnaissance juridique du titre autochtone sur les terres ancestrales est une question particulierement sensible, car elle touche a des interets economiques importants.",
-    questions: [
-      { id: "q1", question: "Qu'etaient les pensionnats pour les enfants autochtones ?", options: ["Des ecoles culturelles volontaires", "Des lieux d'assimilation forcee", "Des centres sportifs", "Des residences universitaires"], correct_answer: 1, explanation: "On dit 'des enfants autochtones ont ete arraches a leurs familles et forces d'abandonner leur langue et leur culture'." },
-      { id: "q2", question: "Quel peuple autochtone est mentionne ?", options: ["Les Mohawks", "Les Ojibwes", "Les Cris", "Les Algonquins"], correct_answer: 2, explanation: "On dit 'Des nations comme les Cris, les Inuit et les Atikamekw'." },
-      { id: "q3", question: "Sur quelles questions portent les negociations ?", options: ["Seulement sur les arts et la culture", "Autodetermination, ressources naturelles, services sociaux et scolaires", "Uniquement les compensations financieres", "Les politiques d'immigration"], correct_answer: 1, explanation: "On dit 'l'autodetermination, la gestion des ressources naturelles et les services sociaux et scolaires'." },
-      { id: "q4", question: "Pourquoi la reconnaissance du titre autochtone sur les terres est-elle sensible ?", options: ["Pour des raisons historiques seulement", "Elle touche a des interets economiques importants", "Elle est interdite par la constitution", "Les gouvernements y sont favorables"], correct_answer: 1, explanation: "On dit 'une question particulierement sensible, car elle touche a des interets economiques importants'." },
-      { id: "q5", question: "Comment qualifie-t-on le processus de reconciliation ?", options: ["Rapide et efficace", "Long et douloureux", "Simple et accepte", "Termine avec succes"], correct_answer: 1, explanation: "On dit 'un processus long et douloureux'." },
-    ],
-  },
-  {
-    id: "l60",
-    title: "La desinformation et ses consequences",
-    level: "B2",
-    topic: "Medias",
-    audio_url: "",
-    duration: 188,
-    created_at: new Date().toISOString(),
-    transcript: "La desinformation n'est pas un phenomene nouveau, mais les technologies numeriques lui ont confere une portee sans precedent. Des contenus faux ou trompeurs peuvent maintenant atteindre des millions de personnes en quelques minutes. Au Quebec et au Canada, des episodes de desinformation ont eu des consequences concretes sur la sante publique, notamment pendant la pandemie de COVID-19, ou des theories complotistes ont conduit certaines personnes a refuser la vaccination. Le Parlement canadien a adopte des lois pour encadrer les plateformes numeriques, mais les debats sur les limites de la liberte d'expression restent intenses. L'education aux medias est de plus en plus consideree comme une competence civique essentielle.",
-    questions: [
-      { id: "q1", question: "Qu'ont change les technologies numeriques par rapport a la desinformation ?", options: ["Elles ont cree la desinformation", "Elles lui ont confere une portee sans precedent", "Elles ont permis de mieux la combattre", "Elles l'ont reduite"], correct_answer: 1, explanation: "On dit 'les technologies numeriques lui ont confere une portee sans precedent'." },
-      { id: "q2", question: "Quel exemple concret d'impact de la desinformation est donne ?", options: ["Des elections faussees", "Des attaques terroristes", "Des refus de vaccination pendant la COVID-19", "Des crises financieres"], correct_answer: 2, explanation: "On dit 'des theories complotistes ont conduit certaines personnes a refuser la vaccination'." },
-      { id: "q3", question: "Quel debat persistant est mentionne ?", options: ["Le cout de la regulation", "Les limites de la liberte d'expression", "La competitivite des entreprises locales", "Le role du gouvernement dans les medias"], correct_answer: 1, explanation: "On dit 'les debats sur les limites de la liberte d'expression restent intenses'." },
-      { id: "q4", question: "Qu'est-ce que l'education aux medias est consideree comme ?", options: ["Une matiere scolaire optionnelle", "Un programme universitaire specialise", "Une competence civique essentielle", "Un outil pour les journalistes"], correct_answer: 2, explanation: "On dit 'L'education aux medias est de plus en plus consideree comme une competence civique essentielle'." },
-      { id: "q5", question: "En combien de temps les contenus faux peuvent-ils atteindre des millions de personnes ?", options: ["En quelques heures", "En quelques minutes", "En quelques jours", "En quelques semaines"], correct_answer: 1, explanation: "On dit 'peuvent maintenant atteindre des millions de personnes en quelques minutes'." },
-    ],
-  },
+  if (stage === "processing") {
+    return (
+      <AppLayout title="Analyse en cours">
+        <div className="max-w-xl mx-auto text-center py-16">
+          <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-950/40 flex items-center justify-center mx-auto mb-6">
+            <Loader2 size={40} className="text-primary-600 animate-spin" />
+          </div>
+          <h2 className="font-display font-bold text-2xl text-surface-900 dark:text-white mb-3">Analyse en cours...</h2>
+          <p className="text-surface-500 text-sm leading-relaxed max-w-sm mx-auto">
+            Notre IA analyse votre prononciation, votre fluidite, votre grammaire et votre vocabulaire. Cela prend environ 10 secondes.
+          </p>
+          <div className="mt-8 space-y-2 max-w-xs mx-auto">
+            {["Transcription de l'audio", "Analyse grammaticale", "Evaluation de la fluidite", "Generation du feedback"].map((step, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <Loader2 size={14} className="text-primary-500 animate-spin flex-shrink-0" />
+                <span className="text-surface-500">{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
-  {
-    id: "l61",
-    title: "Democratie et pouvoir numerique",
-    level: "C1",
-    topic: "Politique et technologie",
-    audio_url: "",
-    duration: 205,
-    created_at: new Date().toISOString(),
-    transcript: "La democratie liberale fait face a un paradoxe fondamental a l'ere numerique. D'un cote, les technologies de l'information ont demultiplie les possibilites de participation citoyenne, rendant accessible la capacite de s'informer, de s'organiser et de deliberer sur les affaires publiques. De l'autre, ces memes technologies ont contribue a la fragmentation de l'espace public, a la polarisation des opinions et a l'affaiblissement des institutions traditionnelles comme les partis politiques, les syndicats et les medias. La gouvernance algorithmique des plateformes numeriques, qui decide de ce que les citoyens voient et ne voient pas, constitue un pouvoir politique immense qui n'est soumis a aucune forme de democratie. Des penseurs comme Shoshana Zuboff ont theorise le capitalisme de surveillance comme un systeme qui modifie profondement les conditions de l'autonomie individuelle, condition necessaire de la participation democratique.",
-    questions: [
-      { id: "q1", question: "Quel paradoxe les technologies numeriques creent-elles pour la democratie ?", options: ["Elles coutent trop cher", "Plus de participation possible mais aussi fragmentation et polarisation", "Elles sont incompatibles avec la democratie", "Elles favorisent les regimes autoritaires"], correct_answer: 1, explanation: "On dit 'D'un cote les possibilites de participation...De l'autre, fragmentation et polarisation'." },
-      { id: "q2", question: "Quelles institutions ont ete affaiblies ?", options: ["Les universites et les hopitaux", "Les partis politiques, syndicats et medias", "Les tribunaux et les banques", "Les ecoles et les mairies"], correct_answer: 1, explanation: "On dit 'l'affaiblissement des institutions traditionnelles comme les partis politiques, les syndicats et les medias'." },
-      { id: "q3", question: "Quel pouvoir politique exercent les plateformes numeriques ?", options: ["Un pouvoir economique uniquement", "Un pouvoir militaire", "Decide de ce que les citoyens voient et ne voient pas", "Influencent directement les votes"], correct_answer: 2, explanation: "On dit 'decide de ce que les citoyens voient et ne voient pas, constitue un pouvoir politique immense'." },
-      { id: "q4", question: "Qu'est-ce que Shoshana Zuboff a theorise ?", options: ["La democratie directe numerique", "Le capitalisme de surveillance", "La gouvernance algorithmique", "La revolution digitale"], correct_answer: 1, explanation: "On dit 'Shoshana Zuboff ont theorise le capitalisme de surveillance'." },
-      { id: "q5", question: "Pourquoi l'autonomie individuelle est-elle importante ?", options: ["Pour l'autonomie economique", "Pour la consommation numerique", "Comme condition necessaire de la participation democratique", "Pour l'equilibre travail-vie"], correct_answer: 2, explanation: "On dit 'les conditions de l'autonomie individuelle, condition necessaire de la participation democratique'." },
-    ],
-  },
-  {
-    id: "l62",
-    title: "L'ethique du soin et la vulnerabilite",
-    level: "C1",
-    topic: "Philosophie et sante",
-    audio_url: "",
-    duration: 210,
-    created_at: new Date().toISOString(),
-    transcript: "L'ethique du soin, developpee notamment par Carol Gilligan et Nel Noddings, propose une alternative aux theories morales universalistes en placant au centre de la reflexion ethique les relations de dependance, de vulnerabilite et de responsabilite mutuelle. Cette approche philosophique resonne particulierement dans le contexte quebecois, ou la crise des soins aux personnes agees a mis en lumiere les tensions entre une conception economisee des soins et une conception humaniste centree sur la dignite de la personne. La vulnerabilite, longtemps percue comme une faiblesse, est rehabilitee comme une caracteristique fondamentale et universelle de la condition humaine. Dans cette perspective, une societe juste est celle qui cree les conditions permettant a chacun de donner et de recevoir des soins au fil de sa vie.",
-    questions: [
-      { id: "q1", question: "Que propose l'ethique du soin face aux theories morales universalistes ?", options: ["Une theorie plus rationnelle", "Une approche centree sur les relations de dependance et vulnerabilite", "Une theorie purement economique", "Une approche religieuse"], correct_answer: 1, explanation: "On dit 'propose une alternative...en placant au centre les relations de dependance, de vulnerabilite et de responsabilite mutuelle'." },
-      { id: "q2", question: "Dans quel contexte quebecois l'ethique du soin resonne-t-elle ?", options: ["La crise educative", "La crise des soins aux personnes agees", "La crise du logement", "La crise politique"], correct_answer: 1, explanation: "On dit 'la crise des soins aux personnes agees a mis en lumiere les tensions'." },
-      { id: "q3", question: "Comment la vulnerabilite est-elle rehabilitee ?", options: ["Comme une faiblesse a corriger", "Comme une faiblesse morale", "Comme une caracteristique fondamentale et universelle de la condition humaine", "Comme un probleme social a eliminer"], correct_answer: 2, explanation: "On dit 'est rehabilitee comme une caracteristique fondamentale et universelle de la condition humaine'." },
-      { id: "q4", question: "Selon l'ethique du soin, qu'est-ce qu'une societe juste ?", options: ["Celle ou chacun se suffit a lui-meme", "Celle qui permet a chacun de donner et recevoir des soins", "Celle qui offre les meilleurs soins medicaux", "Celle qui a le PIB le plus eleve"], correct_answer: 1, explanation: "On dit 'une societe juste est celle qui cree les conditions permettant a chacun de donner et de recevoir des soins'." },
-      { id: "q5", question: "Quelles tensions la crise des soins aux aines a-t-elle mis en lumiere ?", options: ["Entre public et prive", "Entre conception economisee et conception humaniste des soins", "Entre regions et villes", "Entre jeunes et vieux"], correct_answer: 1, explanation: "On dit 'les tensions entre une conception economisee des soins et une conception humaniste centree sur la dignite'." },
-    ],
-  },
-  {
-    id: "l63",
-    title: "La mondialisation culturelle et la diversite",
-    level: "C1",
-    topic: "Culture",
-    audio_url: "",
-    duration: 208,
-    created_at: new Date().toISOString(),
-    transcript: "La mondialisation culturelle est un phenomene ambivalent qui suscite des evaluations radicalement differentes. Pour ses partisans, elle enrichit les identites culturelles par hybridation et permet la diffusion d'oeuvres au-dela des frontieres nationales. Pour ses detracteurs, notamment les defenseurs de la diversite culturelle, elle constitue une menace pour les cultures minoritaires et locales, soumises a la pression des industries culturelles anglophones qui beneficient d'economies d'echelle colossales. Au Quebec, ce debat prend une dimension existentielle, car la culture francophone nord-americaine est doublement menacee : par la domination mondiale de l'anglais et par la concentration des plateformes numeriques entre les mains d'entreprises anglophones. La Convention UNESCO de 2005 etablit que les biens culturels ne peuvent etre traites comme de simples marchandises.",
-    questions: [
-      { id: "q1", question: "Comment les partisans de la mondialisation culturelle la voient-ils ?", options: ["Comme une menace pour les cultures locales", "Comme enrichissant les identites par hybridation", "Comme une nouvelle forme d'imperialisme", "Comme homogeneisant les cultures"], correct_answer: 1, explanation: "On dit 'elle enrichit les identites culturelles par hybridation et permet la diffusion d'oeuvres'." },
-      { id: "q2", question: "Pourquoi les cultures minoritaires sont-elles menacees ?", options: ["Par manque de creativite", "A cause des economies d'echelle des industries anglophones", "A cause des politiques gouvernementales", "Par manque de public local"], correct_answer: 1, explanation: "On dit 'soumises a la pression des industries culturelles anglophones qui beneficient d'economies d'echelle colossales'." },
-      { id: "q3", question: "De quoi la culture quebecoise est-elle doublement menacee ?", options: ["Par la mondialisation et la desinformation", "Par la domination de l'anglais mondial et les plateformes numeriques anglophones", "Par l'immigration et l'anglicisation", "Par les cultures europeennes et americaines"], correct_answer: 1, explanation: "On dit 'doublement menacee : par la domination mondiale de l'anglais et par la concentration des plateformes numeriques...anglophones'." },
-      { id: "q4", question: "En quelle annee la Convention de l'UNESCO a-t-elle ete adoptee ?", options: ["1995", "2000", "2005", "2010"], correct_answer: 2, explanation: "On dit 'La Convention UNESCO de 2005'." },
-      { id: "q5", question: "Quel principe la Convention UNESCO etablit-elle ?", options: ["Que la culture doit etre gratuite", "Que les biens culturels ne peuvent etre traites comme de simples marchandises", "Que les langues minoritaires doivent etre protegees", "Que la diversite culturelle est un droit"], correct_answer: 1, explanation: "On dit 'etablit que les biens culturels ne peuvent etre traites comme de simples marchandises'." },
-    ],
-  },
-  {
-    id: "l64",
-    title: "Les droits des travailleurs de plateformes",
-    level: "C1",
-    topic: "Travail et droit",
-    audio_url: "",
-    duration: 205,
-    created_at: new Date().toISOString(),
-    transcript: "Les travailleurs migrants temporaires constituent une categorie particulierement vulnerable du marche du travail canadien. Arrives via des programmes comme le Programme des travailleurs agricoles saisonniers, ils sont souvent lies a un seul employeur, ce qui cree une situation de dependance quasi totale. Cette dependance est la source de nombreuses formes d'abus : surtemps non remuneres, logements insalubres fournis par l'employeur, et menace de deportation utilisee comme outil de pression. La pandemie de COVID-19 a mis en lumiere la precarite extreme de cette population, notamment dans le secteur agricole quebecois ou des eclosions importantes ont eu lieu dans les fermes. Des organisations de defense des droits militent pour que ces travailleurs aient le droit de changer d'employeur librement et aient acces a une voie vers la residence permanente.",
-    questions: [
-      { id: "q1", question: "Qu'est-ce qui cree la dependance des travailleurs migrants temporaires ?", options: ["Leur manque de competences linguistiques", "Le fait qu'ils soient lies a un seul employeur", "L'absence de syndicats agricoles", "Leur statut temporaire uniquement"], correct_answer: 1, explanation: "On dit 'ils sont souvent lies a un seul employeur, ce qui cree une situation de dependance quasi totale'." },
-      { id: "q2", question: "Quel abus grave certains employeurs pratiquent-ils ?", options: ["Le refus de payer en especes", "La menace de deportation utilisee comme outil de pression", "La non-fourniture de vetements de travail", "Le refus de cours de langue"], correct_answer: 1, explanation: "On dit 'menace de deportation utilisee comme outil de pression'." },
-      { id: "q3", question: "Quel evenement a mis en lumiere leur precarite ?", options: ["La crise economique de 2008", "La pandemie de COVID-19", "Les inondations de 2019", "Une greve agricole"], correct_answer: 1, explanation: "On dit 'La pandemie de COVID-19 a mis en lumiere la precarite extreme de cette population'." },
-      { id: "q4", question: "Quel secteur a ete particulierement touche au Quebec ?", options: ["La construction", "L'agriculture", "La restauration", "Le tourisme"], correct_answer: 1, explanation: "On dit 'notamment dans le secteur agricole quebecois ou des eclosions importantes ont eu lieu dans les fermes'." },
-      { id: "q5", question: "Que revendiquent les organisations de defense des droits ?", options: ["Des salaires plus eleves uniquement", "Le droit de changer d'employeur et une voie vers la residence permanente", "Des contrats plus courts", "La priorite dans les emplois publics"], correct_answer: 1, explanation: "On dit 'que ces travailleurs aient le droit de changer d'employeur librement et aient acces a une voie vers la residence permanente'." },
-    ],
-  },
-  {
-    id: "l65",
-    title: "Le revenu universel de base",
-    level: "C1",
-    topic: "Economie et societe",
-    audio_url: "",
-    duration: 212,
-    created_at: new Date().toISOString(),
-    transcript: "Le debat sur le revenu universel de base connait un regain d'interet au Quebec, stimule notamment par les inquietudes liees a l'automatisation du marche du travail. L'idee consiste a verser a tous les citoyens, sans condition de ressources ni d'emploi, une somme mensuelle suffisante pour couvrir les besoins essentiels. Ses partisans font valoir qu'il permettrait d'eliminer la pauvrete, de simplifier les systemes de protection sociale bureaucratiques et de donner aux individus plus d'autonomie. Ses detracteurs soulignent le cout colossal d'une telle mesure, les risques d'inflation, le desincitatif au travail et la substitution d'une aide universelle inadequate aux services publics dont dependent les plus vulnerables. Des experiences pilotes ont ete menees en Finlande, au Kenya et en Ontario avec des resultats nuances.",
-    questions: [
-      { id: "q1", question: "Qu'est-ce qui a relance le debat sur le revenu universel ?", options: ["La crise du logement", "Les inegalites croissantes", "Les inquietudes liees a l'automatisation du marche du travail", "La crise des services publics"], correct_answer: 2, explanation: "On dit 'stimule notamment par les inquietudes liees a l'automatisation du marche du travail'." },
-      { id: "q2", question: "En quoi consiste le revenu universel ?", options: ["Verser une aide aux chomeurs uniquement", "Verser a tous les citoyens sans condition une somme mensuelle pour les besoins essentiels", "Creer un salaire minimum universel", "Remplacer l'aide sociale par des bons d'achat"], correct_answer: 1, explanation: "On dit 'verser a tous les citoyens, sans condition de ressources ni d'emploi, une somme mensuelle suffisante pour couvrir les besoins essentiels'." },
-      { id: "q3", question: "Quel avantage les partisans mettent-ils en avant ?", options: ["La reduction des impots", "L'elimination de la bureaucratie uniquement", "L'elimination de la pauvrete et plus d'autonomie individuelle", "L'incitation au travail"], correct_answer: 2, explanation: "On dit 'il permettrait d'eliminer la pauvrete...et de donner aux individus plus d'autonomie'." },
-      { id: "q4", question: "Quel risque les detracteurs identifient-ils ?", options: ["L'inflation et le desincitatif au travail", "La montee des inegalites", "L'augmentation du chomage", "La disparition des syndicats"], correct_answer: 0, explanation: "On dit 'les risques d'inflation, le desincitatif au travail'." },
-      { id: "q5", question: "Dans quel pays un programme pilote a-t-il ete mene ?", options: ["Suede", "Danemark", "Finlande", "Allemagne"], correct_answer: 2, explanation: "On dit 'Des experiences pilotes ont ete menees en Finlande, au Kenya et en Ontario'." },
-    ],
-  },
-  {
-    id: "l66",
-    title: "La diversite linguistique mondiale",
-    level: "C1",
-    topic: "Langue et culture",
-    audio_url: "",
-    duration: 206,
-    created_at: new Date().toISOString(),
-    transcript: "Chaque langue est non seulement un systeme de communication mais un ecosysteme cognitif et culturel unique qui structure la perception du monde de ses locuteurs. La diversite linguistique mondiale, qui se compte aujourd'hui en environ sept mille langues dont la moitie sont menacees d'extinction, represente une richesse cognitive collective irremplaçable. Lorsqu'une langue disparait, c'est non seulement une memoire orale et une culture qui meurent, mais potentiellement des structures conceptuelles et des savoirs ecologiques transmis oralement depuis des millenaires. Le francais quebecois, avec ses specificites lexicales et phonologiques, est lui-meme un ecosysteme linguistique particulier dont la vitalite depend de sa transmission intergenerationnelle et de sa capacite a absorber les neologismes contemporains sans se dissoudre dans un standard international.",
-    questions: [
-      { id: "q1", question: "Comment le texte definit-il une langue au-dela de la communication ?", options: ["Comme un outil politique", "Comme un ecosysteme cognitif et culturel unique", "Comme un patrimoine historique uniquement", "Comme un outil economique"], correct_answer: 1, explanation: "On dit 'un ecosysteme cognitif et culturel unique qui structure la perception du monde'." },
-      { id: "q2", question: "Combien de langues existent-elles aujourd'hui ?", options: ["Environ 3000", "Environ 5000", "Environ 7000", "Environ 10000"], correct_answer: 2, explanation: "On dit 'environ sept mille langues'." },
-      { id: "q3", question: "Que signifie la disparition d'une langue ?", options: ["Uniquement la perte d'un outil de communication", "La perte de memoire, culture, structures conceptuelles et savoirs oraux", "La perte d'un heritage touristique", "Seulement un phenomene linguistique"], correct_answer: 1, explanation: "On dit 'une memoire orale et une culture qui meurent, mais aussi des structures conceptuelles et des savoirs ecologiques'." },
-      { id: "q4", question: "De quoi depend la vitalite du francais quebecois ?", options: ["De l'absence de neologismes", "De sa transmission intergenerationnelle et de sa capacite a absorber les neologismes", "De l'immigration francophone", "De la television francaise"], correct_answer: 1, explanation: "On dit 'sa transmission intergenerationnelle et de sa capacite a absorber les neologismes contemporains'." },
-      { id: "q5", question: "Quel risque le francais quebecois doit-il eviter ?", options: ["D'etre trop populaire", "De se dissoudre dans un standard international", "D'adopter trop de neologismes", "De devenir une langue ecrite uniquement"], correct_answer: 1, explanation: "On dit 'sans se dissoudre dans un standard international'." },
-    ],
-  },
-  {
-    id: "l67",
-    title: "Les nouvelles formes de militantisme",
-    level: "C1",
-    topic: "Societe",
-    audio_url: "",
-    duration: 208,
-    created_at: new Date().toISOString(),
-    transcript: "Le militantisme politique et social a connu des transformations profondes avec l'avenement des reseaux sociaux. Si les grandes organisations traditionnelles conservent une importance structurelle, de nouvelles formes d'action collective emergent, caracterisees par leur horizontalite, leur rapidite de mobilisation et leur capacite a traverser les frontieres nationales. Les mouvements comme Me Too, Black Lives Matter ou la greve etudiante pour le climat illustrent cette nouvelle forme de mobilisation qui peut atteindre une dimension mondiale en quelques jours. Cependant, des chercheurs mettent en garde contre un optimisme excessif sur le potentiel emancipateur du numerique. Le slacktivisme, qui consiste a exprimer son soutien par un simple clic sans engagement reel, peut donner l'illusion d'une participation politique sans ses effets.",
-    questions: [
-      { id: "q1", question: "Quelles caracteristiques distinguent les nouvelles formes de militantisme ?", options: ["Leur hierarchie et leur rigidite", "Leur horizontalite, rapidite et portee transnationale", "Leur dependance aux medias traditionnels", "Leur localisme et confidentialite"], correct_answer: 1, explanation: "On dit 'caracterisees par leur horizontalite, leur rapidite de mobilisation et leur capacite a traverser les frontieres nationales'." },
-      { id: "q2", question: "Quel mouvement est mentionne comme exemple de mobilisation mondiale ?", options: ["Occupy Wall Street", "Extinction Rebellion", "Black Lives Matter", "Anonymous"], correct_answer: 2, explanation: "On dit 'Les mouvements comme Me Too, Black Lives Matter ou la greve etudiante pour le climat'." },
-      { id: "q3", question: "Qu'est-ce que le slacktivisme ?", options: ["Le militantisme dans les grandes villes", "L'activisme des personnes agees", "Exprimer son soutien par un simple clic sans engagement reel", "Le militantisme en ligne intensif"], correct_answer: 2, explanation: "On dit 'Le slacktivisme, qui consiste a exprimer son soutien par un simple clic sans engagement reel'." },
-      { id: "q4", question: "Quelle illusion le slacktivisme peut-il creer ?", options: ["Celle d'une riche vie sociale", "Celle d'une participation politique sans ses effets reels", "Celle d'une expertise politique", "Celle d'un reseau professionnel etendu"], correct_answer: 1, explanation: "On dit 'peut donner l'illusion d'une participation politique sans ses effets'." },
-      { id: "q5", question: "Les grandes organisations traditionnelles ont-elles perdu tout role ?", options: ["Oui, completement", "Non, elles conservent une importance structurelle", "Elles n'existent plus", "Elles ont ete remplacees par les reseaux sociaux"], correct_answer: 1, explanation: "On dit 'les grandes organisations traditionnelles conservent une importance structurelle'." },
-    ],
-  },
-  {
-    id: "l68",
-    title: "Espace et lieu en philosophie urbaine",
-    level: "C1",
-    topic: "Philosophie et urbanisme",
-    audio_url: "",
-    duration: 210,
-    created_at: new Date().toISOString(),
-    transcript: "La distinction philosophique entre l'espace et le lieu est fondamentale pour comprendre comment les humains habitent le monde. L'espace designe un environnement abstrait, geometrique et neutre, alors que le lieu est un espace charge d'experience, de memoire et de signification. Cette distinction a des implications profondes pour l'architecture, l'urbanisme et les politiques de conservation du patrimoine. La destruction d'un lieu n'est pas neutre : elle efface des couches d'experience collective et de memoire partagee qui constituent l'identite des communautes. C'est pourquoi des projets de renovation urbaine, meme economiquement benefiques, peuvent provoquer de fortes resistances. Le defi des planificateurs est de creer des espaces qui puissent devenir des lieux, favorisant l'appropriation et l'appartenance des communautes.",
-    questions: [
-      { id: "q1", question: "Quelle est la distinction fondamentale faite dans le texte ?", options: ["Entre architecture et design", "Entre espace abstrait et lieu charge de signification", "Entre nature et ville", "Entre patrimoine et modernite"], correct_answer: 1, explanation: "On dit 'L'espace designe un environnement abstrait...alors que le lieu est un espace charge d'experience, de memoire et de signification'." },
-      { id: "q2", question: "Qu'efface la destruction d'un lieu ?", options: ["Uniquement des batiments physiques", "Des couches d'experience collective et de memoire partagee", "Des actifs immobiliers", "Des infrastructures techniques"], correct_answer: 1, explanation: "On dit 'elle efface des couches d'experience collective et de memoire partagee'." },
-      { id: "q3", question: "Pourquoi des renovations urbaines peuvent-elles provoquer des resistances ?", options: ["A cause des travaux perturbateurs", "Parce que l'attachement aux lieux depasse la valeur marchande", "Pour des raisons politiques", "A cause du cout des travaux"], correct_answer: 1, explanation: "On dit que les gens resistent car leur attachement 'depasse la simple valeur marchande des proprietes'." },
-      { id: "q4", question: "Pour quels domaines cette distinction a-t-elle des implications profondes ?", options: ["La medecine et la psychologie", "L'architecture, l'urbanisme et la conservation du patrimoine", "La politique et l'economie", "L'education et la culture"], correct_answer: 1, explanation: "On dit 'des implications profondes pour l'architecture, l'urbanisme et les politiques de conservation du patrimoine'." },
-      { id: "q5", question: "Quel est le defi des planificateurs urbains ?", options: ["Construire moins cher", "Creer des espaces qui deviennent des lieux favorisant l'appartenance", "Maximiser la densite des batiments", "Respecter les normes ecologiques"], correct_answer: 1, explanation: "On dit 'creer des espaces qui puissent devenir des lieux, favorisant l'appropriation et l'appartenance des communautes'." },
-    ],
-  },
-  {
-    id: "l69",
-    title: "L'education interculturelle au Quebec",
-    level: "C1",
-    topic: "Education",
-    audio_url: "",
-    duration: 208,
-    created_at: new Date().toISOString(),
-    transcript: "L'education interculturelle, distincte de l'education multiculturelle qui se contente souvent d'une celebration des differences superficielles, vise a developper chez les eleves des competences profondes de comprehension, d'empathie et de dialogue entre personnes de cultures differentes. Cette approche pedagogique reconnait que les cultures ne sont pas des entites fixes et separees mais des systemes dynamiques en constante interaction. Dans le contexte quebecois, ou les ecoles accueillent des enfants d'origines culturelles tres diverses, l'education interculturelle repond a un besoin concret. Elle exige cependant des enseignants une formation specifique et une capacite a naviguer dans des situations ou les valeurs culturelles des eleves entrent en tension avec celles de l'institution scolaire.",
-    questions: [
-      { id: "q1", question: "En quoi l'education interculturelle differe-t-elle de l'education multiculturelle ?", options: ["Elle est moins tolerante", "Elle vise des competences profondes plutot que celebrer des differences superficielles", "Elle se concentre uniquement sur la langue", "Elle est plus couteuse"], correct_answer: 1, explanation: "On dit 'distincte de l'education multiculturelle qui se contente souvent d'une celebration des differences superficielles'." },
-      { id: "q2", question: "Comment les cultures sont-elles concues dans cette approche ?", options: ["Comme des entites fixes et separees", "Comme des systemes dynamiques en constante interaction", "Comme des heritages immuables", "Comme des obstacles a surmonter"], correct_answer: 1, explanation: "On dit 'les cultures ne sont pas des entites fixes...mais des systemes dynamiques en constante interaction'." },
-      { id: "q3", question: "Pourquoi l'education interculturelle est-elle pertinente au Quebec ?", options: ["A cause de la question linguistique", "Parce que les ecoles accueillent des enfants d'origines culturelles tres diverses", "Pour des raisons politiques", "A cause des relations avec le Canada anglais"], correct_answer: 1, explanation: "On dit 'les ecoles accueillent des enfants d'origines culturelles tres diverses'." },
-      { id: "q4", question: "Qu'exige cette approche des enseignants ?", options: ["Une meilleure maitrise des langues", "Une formation specifique et capacite de naviguer entre valeurs en tension", "Plus de cours magistraux", "Une specialisation dans une seule culture"], correct_answer: 1, explanation: "On dit 'exige des enseignants une formation specifique et une capacite a naviguer dans des situations ou les valeurs culturelles entrent en tension'." },
-      { id: "q5", question: "Quelles competences vise-t-on a developper chez les eleves ?", options: ["Des competences linguistiques uniquement", "Des competences profondes de comprehension, d'empathie et de dialogue", "Des competences economiques", "Des competences sportives et artistiques"], correct_answer: 1, explanation: "On dit 'des competences profondes de comprehension, d'empathie et de dialogue entre personnes de cultures differentes'." },
-    ],
-  },
-  {
-    id: "l70",
-    title: "La justice climatique mondiale",
-    level: "C1",
-    topic: "Environnement et ethique",
-    audio_url: "",
-    duration: 212,
-    created_at: new Date().toISOString(),
-    transcript: "La justice climatique est un cadre ethique et politique qui s'impose dans les debats sur les changements climatiques. Elle pose des questions fondamentales sur la responsabilite, l'equite et la reparation entre des acteurs qui ont contribue differemment au probleme. Les pays industrialises, dont le Canada, ont emis historiquement la majorite des gaz a effet de serre, tandis que ce sont souvent les pays les plus pauvres et les plus vulnerables qui en subissent les consequences les plus devastatrices. Cette injustice souleve la question de l'obligation de reparation, notamment sous forme de financement climatique aux pays du Sud. Au Quebec, la justice climatique prend aussi une dimension locale, ou les personnes a faible revenu, les communautes autochtones et certaines communautes culturelles sont disproportionnellement exposees aux consequences des changements climatiques.",
-    questions: [
-      { id: "q1", question: "Sur quoi la justice climatique pose-t-elle des questions ?", options: ["Sur les technologies vertes", "Sur la responsabilite, l'equite et la reparation", "Sur les migrations climatiques uniquement", "Sur le financement de la recherche"], correct_answer: 1, explanation: "On dit 'elle pose des questions fondamentales sur la responsabilite, l'equite et la reparation'." },
-      { id: "q2", question: "Quelle injustice fondamentale le texte souligne-t-il ?", options: ["Les pays riches souffrent autant", "Les pays qui ont le moins emis subissent les pires consequences", "Les pays pauvres polluent autant", "Les consequences sont egales pour tous"], correct_answer: 1, explanation: "On dit 'les pays industrialises ont emis...la majorite des gaz...tandis que les pays les plus pauvres...subissent les consequences les plus devastatrices'." },
-      { id: "q3", question: "Quelle obligation cette injustice souleve-t-elle pour les pays riches ?", options: ["De reduire leur consommation", "Une obligation de reparation sous forme de financement climatique", "D'accueillir les refugies climatiques", "De transferer leurs technologies"], correct_answer: 1, explanation: "On dit 'la question de l'obligation de reparation, notamment sous forme de financement climatique aux pays du Sud'." },
-      { id: "q4", question: "Qui est disproportionnellement expose au Quebec ?", options: ["Les habitants des banlieues", "Les personnes agees et les jeunes", "Les personnes a faible revenu, communautes autochtones et certaines communautes culturelles", "Les proprietaires fonciers"], correct_answer: 2, explanation: "On dit 'les personnes a faible revenu, les communautes autochtones et certaines communautes culturelles sont disproportionnellement exposees'." },
-      { id: "q5", question: "Quelle double dimension la justice climatique a-t-elle au Quebec ?", options: ["Economique et politique", "Locale et globale", "Provinciale et federale", "Environnementale et sanitaire"], correct_answer: 1, explanation: "On dit 'la justice climatique prend aussi une dimension locale' en plus de la dimension mondiale." },
-    ],
-  },
+  if (stage === "results" && evaluation && selected) {
+    return (
+      <AppLayout title="Evaluation orale">
+        <div className="max-w-3xl mx-auto space-y-6 animate-slide-up">
+          {/* Header */}
+          <Card className="overflow-hidden">
+            <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm mb-1">Score global</p>
+                  <div className="font-display font-black text-6xl">{evaluation.overall_score}</div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-bold">Niveau {evaluation.cefr_level}</span>
+                  </div>
+                </div>
+                <ScoreCircle score={evaluation.overall_score} size="lg" color="white" className="opacity-90" />
+              </div>
+            </div>
+          </Card>
 
-];
+          {/* Scores */}
+          <Card>
+            <CardBody>
+              <h3 className="font-semibold text-surface-900 dark:text-white mb-5 flex items-center gap-2">
+                <TrendingUp size={18} className="text-primary-500" /> Scores par critere
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                {[
+                  { label: "Prononciation", score: evaluation.pronunciation_score },
+                  { label: "Fluidite", score: evaluation.fluency_score },
+                  { label: "Grammaire", score: evaluation.grammar_score },
+                  { label: "Vocabulaire", score: evaluation.vocabulary_score },
+                  { label: "Coherence", score: evaluation.coherence_score },
+                ].map((c) => (
+                  <ScoreCircle key={c.label} score={c.score} label={c.label} size="sm" className="mx-auto" />
+                ))}
+              </div>
+            </CardBody>
+          </Card>
 
-export const sampleSpeakingPrompts: SpeakingPrompt[] = [
-  // ── A1 (s1–s10) ──────────────────────────────────────────────────────────
-  {
-    id: "s1", level: "A1", topic: "Presentation personnelle", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Presentez-vous : donnez votre nom, votre age, votre pays d'origine et votre profession.",
-    example_response: "INSTRUCTIONS : Parlez lentement et clairement. Utilisez des phrases simples et courtes. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Bonjour, je m'appelle Maria. J'ai vingt-huit ans. Je viens du Mexique. Je suis infirmiere. J'habite a Montreal depuis six mois. J'aime beaucoup cette ville.\n\nVOCABULAIRE CLE : je m'appelle / j'ai ... ans / je viens de / je suis / j'habite / depuis\n\nRUBRIQUE D'EVALUATION : Prononciation claire (25%) | Vocabulaire de base correct (25%) | Phrases completes (25%) | Informations pertinentes (25%)",
-  },
-  {
-    id: "s2", level: "A1", topic: "Famille", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez votre famille. Combien de personnes y a-t-il ? Qui sont-elles ?",
-    example_response: "INSTRUCTIONS : Nommez les membres de votre famille et donnez des details simples. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Dans ma famille, il y a quatre personnes. Mon mari s'appelle Carlos. Il est medecin. J'ai deux enfants : une fille de cinq ans et un fils de trois ans. Ma fille s'appelle Sofia. Mon fils s'appelle Lucas. Nous habitons ensemble a Montreal.\n\nVOCABULAIRE CLE : ma famille / il y a / mon mari / ma femme / mes enfants / ma fille / mon fils / il s'appelle / elle s'appelle\n\nRUBRIQUE D'EVALUATION : Membres de la famille nommes (30%) | Ages et noms mentionnes (30%) | Prononciation acceptable (20%) | Phrases completes (20%)",
-  },
-  {
-    id: "s3", level: "A1", topic: "Logement", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez votre appartement ou votre maison. Combien de pieces y a-t-il ? Ou est-il situe ?",
-    example_response: "INSTRUCTIONS : Decrivez les pieces et l'emplacement de votre logement. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : J'habite dans un appartement au centre-ville de Montreal. Mon appartement a trois pieces : un salon, une cuisine et une chambre. Il y a aussi une salle de bain. Mon appartement est au deuxieme etage. Le loyer est de mille deux cents dollars par mois.\n\nVOCABULAIRE CLE : j'habite / un appartement / une maison / il y a / le salon / la cuisine / la chambre / la salle de bain / l'etage\n\nRUBRIQUE D'EVALUATION : Description des pieces (30%) | Localisation donnee (25%) | Vocabulaire du logement (25%) | Fluidite (20%)",
-  },
-  {
-    id: "s4", level: "A1", topic: "Nourriture", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Parlez de vos aliments preferes. Qu'est-ce que vous aimez manger ? Qu'est-ce que vous n'aimez pas ?",
-    example_response: "INSTRUCTIONS : Donnez des exemples concrets de ce que vous aimez et n'aimez pas. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : J'aime beaucoup la pizza et les pates. J'aime aussi le poulet et les legumes. Je mange souvent des fruits le matin. Je n'aime pas le poisson. Je deteste les champignons. Mon plat prefere est le spaghetti bolognaise.\n\nVOCABULAIRE CLE : j'aime / je n'aime pas / je deteste / mon plat prefere / je mange / souvent / beaucoup\n\nRUBRIQUE D'EVALUATION : Aliments aimes nommes (25%) | Aliments non aimes nommes (25%) | Utilisation de j'aime/je n'aime pas (30%) | Prononciation (20%)",
-  },
-  {
-    id: "s5", level: "A1", topic: "Loisirs", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Quelles activites faites-vous pendant votre temps libre ? Parlez de vos loisirs.",
-    example_response: "INSTRUCTIONS : Donnez 2 ou 3 activites et expliquez quand vous les faites. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Dans mon temps libre, j'aime regarder des films. J'aime aussi faire du sport. Le week-end, je joue au football avec mes amis. Le soir, j'ecoute de la musique ou je lis des livres. J'aime beaucoup la musique latina.\n\nVOCABULAIRE CLE : le temps libre / j'aime / faire du sport / regarder / ecouter / le week-end / le soir / jouer a\n\nRUBRIQUE D'EVALUATION : 2-3 loisirs mentionnes (35%) | Moments precises (25%) | Vocabulaire des loisirs (25%) | Coherence (15%)",
-  },
-  {
-    id: "s6", level: "A1", topic: "Transport", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Comment allez-vous au travail ou a l'ecole ? Decrivez votre trajet habituel.",
-    example_response: "INSTRUCTIONS : Decrivez votre moyen de transport et la duree du trajet. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Chaque matin, je prends le metro pour aller au travail. Je pars de chez moi a huit heures. Le trajet dure vingt minutes. Parfois, quand il fait beau, je prends mon velo. J'aime beaucoup le velo. C'est rapide et bon pour la sante.\n\nVOCABULAIRE CLE : je prends / le metro / l'autobus / le velo / la voiture / a pied / le trajet dure / je pars de / chaque matin\n\nRUBRIQUE D'EVALUATION : Moyen de transport identifie (30%) | Duree/heure mentionnee (25%) | Phrases correctes (25%) | Fluidite (20%)",
-  },
-  {
-    id: "s7", level: "A1", topic: "Meteo", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez le temps qu'il fait aujourd'hui et votre saison preferee au Quebec.",
-    example_response: "INSTRUCTIONS : Parlez du temps aujourd'hui et expliquez pourquoi vous aimez une saison. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Aujourd'hui, il fait froid et il neige. La temperature est de moins dix degres. J'aime beaucoup l'hiver au Quebec. La neige est tres belle. Mais ma saison preferee est l'ete parce qu'il fait chaud et je peux aller a la plage.\n\nVOCABULAIRE CLE : il fait beau / il fait froid / il neige / il pleut / la temperature / ma saison preferee / l'hiver / l'ete / le printemps / l'automne\n\nRUBRIQUE D'EVALUATION : Temps actuel decrit (30%) | Saison preferee donnee (25%) | Raison expliquee (25%) | Vocabulaire meteorologique (20%)",
-  },
-  {
-    id: "s8", level: "A1", topic: "Shopping", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez un objet ou un vetement que vous avez achete recemment. Ou l'avez-vous achete ? Combien coute-t-il ?",
-    example_response: "INSTRUCTIONS : Decrivez l'objet, le magasin et le prix. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : La semaine derniere, j'ai achete un manteau rouge dans un magasin du centre-ville. Le manteau est tres chaud et confortable. Il coute cent cinquante dollars. Je l'aime beaucoup. J'ai aussi achete des bottes noires. Les bottes coutent quatre-vingt dollars.\n\nVOCABULAIRE CLE : j'ai achete / un manteau / une robe / des chaussures / le magasin / il coute / la semaine derniere / nouveau / nouvelle\n\nRUBRIQUE D'EVALUATION : Objet decrit (30%) | Prix mentionne (25%) | Lieu d'achat donne (25%) | Adjectifs utilises (20%)",
-  },
-  {
-    id: "s9", level: "A1", topic: "Sante", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Vous n'etes pas bien aujourd'hui. Expliquez vos symptomes a un medecin.",
-    example_response: "INSTRUCTIONS : Decrivez vos symptomes clairement. Utilisez 'j'ai mal a...' et 'j'ai de la fievre'. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Bonjour docteur. Je ne suis pas bien. J'ai mal a la gorge depuis trois jours. J'ai aussi de la fievre. Ma temperature est de trente-huit degres. J'ai mal a la tete. Je suis tres fatigue. Je ne peux pas travailler.\n\nVOCABULAIRE CLE : j'ai mal a / j'ai de la fievre / je suis fatigue / depuis / la gorge / la tete / le ventre / je ne me sens pas bien\n\nRUBRIQUE D'EVALUATION : Symptomes decrits (35%) | Duree mentionnee (20%) | Expression j'ai mal a (25%) | Clarte (20%)",
-  },
-  {
-    id: "s10", level: "A1", topic: "Ecole et formation", duration: 60,
-    created_at: new Date().toISOString(),
-    prompt: "Parlez de vos etudes. Qu'est-ce que vous etudiez ou qu'avez-vous etudie ? Ou ?",
-    example_response: "INSTRUCTIONS : Donnez des informations sur vos etudes passees ou actuelles. Preparation : 30 secondes. Duree : 60 secondes.\n\nEXEMPLE DE REPONSE : Au Quebec, j'etudie le francais a l'ecole de langues. Mes cours ont lieu trois fois par semaine. Dans mon pays, j'ai etudie l'informatique a l'universite. J'ai un diplome de bachelor en informatique. Maintenant, je veux trouver un emploi dans la technologie.\n\nVOCABULAIRE CLE : j'etudie / j'ai etudie / l'universite / le diplome / les cours / l'ecole / la formation / le bachelor / la maitrise\n\nRUBRIQUE D'EVALUATION : Domaine d'etude mentionne (30%) | Institution nommee (25%) | Niveau d'etude precise (25%) | Coherence (20%)",
-  },
+          {/* Transcript */}
+          <Card>
+            <CardBody>
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wide mb-2">Transcription de votre reponse</p>
+              <p className="text-sm text-surface-700 dark:text-surface-300 italic leading-relaxed">{evaluation.transcript}</p>
+            </CardBody>
+          </Card>
 
-  // ── A2 (s11–s20) ─────────────────────────────────────────────────────────
-  {
-    id: "s11", level: "A2", topic: "Vie quotidienne", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez votre routine quotidienne du matin jusqu'au soir. Qu'est-ce que vous faites chaque jour ?",
-    example_response: "INSTRUCTIONS : Decrivez votre journee type en utilisant des indicateurs de temps. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Je me leve a sept heures du matin. Je prends une douche et je mange des cereales. Je pars au travail a huit heures. Je travaille de neuf heures a dix-sept heures. A midi, je mange avec mes collegues a la cafeteria. Le soir, je fais la cuisine et je dine avec ma famille. Apres le diner, je regarde la television ou je lis. Je me couche a vingt-deux heures.\n\nVOCABULAIRE CLE : se lever / se coucher / le matin / le soir / a midi / d'abord / ensuite / puis / finalement / chaque jour\n\nRUBRIQUE D'EVALUATION : Routine complete (matin-midi-soir) (30%) | Indicateurs de temps (25%) | Verbes pronominaux (20%) | Fluidite et coherence (25%)",
-  },
-  {
-    id: "s12", level: "A2", topic: "Voyage", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Parlez d'un voyage que vous avez fait. Ou etes-vous alle ? Avec qui ? Qu'avez-vous fait ?",
-    example_response: "INSTRUCTIONS : Utilisez le passe compose pour raconter votre voyage. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : L'annee derniere, je suis alle a New York avec ma femme. Nous avons pris l'avion depuis Montreal. Nous avons visite la Statue de la Liberte et Central Park. Nous avons mange dans de tres bons restaurants. Nous sommes restes cinq jours. C'etait un voyage magnifique. J'ai adore la ville et l'ambiance.\n\nVOCABULAIRE CLE : je suis alle / nous avons visite / nous avons pris / l'annee derniere / pendant ... jours / c'etait / magnifique / j'ai adore\n\nRUBRIQUE D'EVALUATION : Destination et compagnons mentionnes (25%) | Activites decrites (30%) | Passe compose utilise (25%) | Details du voyage (20%)",
-  },
-  {
-    id: "s13", level: "A2", topic: "Travail", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez votre emploi actuel ou un emploi que vous avez eu. Quelles etaient vos responsabilites ?",
-    example_response: "INSTRUCTIONS : Decrivez vos taches et vos responsabilites au travail. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Je suis comptable dans une entreprise de technologie a Montreal. Je travaille du lundi au vendredi, de neuf heures a dix-sept heures. Mes principales responsabilites sont la gestion des factures et la preparation des rapports financiers. Je travaille aussi avec les clients pour les questions de paiement. J'aime mon travail parce que c'est interessant et mes collegues sont sympathiques.\n\nVOCABULAIRE CLE : je travaille comme / mes responsabilites / je gere / je prepare / mes collegues / l'entreprise / le bureau / les clients\n\nRUBRIQUE D'EVALUATION : Poste et employeur nommes (25%) | Responsabilites decrites (35%) | Horaires mentionnes (20%) | Opinion exprimee (20%)",
-  },
-  {
-    id: "s14", level: "A2", topic: "Immigration au Quebec", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Pourquoi avez-vous choisi de venir au Quebec ? Quels ont ete vos premieres impressions ?",
-    example_response: "INSTRUCTIONS : Expliquez vos motivations et vos premieres impressions de la province. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : J'ai choisi de venir au Quebec pour plusieurs raisons. D'abord, je voulais ameliorer mon francais. Ensuite, j'ai entendu que la qualite de vie est tres bonne au Quebec. Mes premieres impressions ont ete tres positives. Les gens sont accueillants et sympathiques. J'ai ete surpris par le froid en hiver mais j'aime maintenant la neige et les activites d'hiver.\n\nVOCABULAIRE CLE : j'ai choisi / parce que / d'abord / ensuite / mes premieres impressions / j'ai ete surpris / la qualite de vie / accueillant\n\nRUBRIQUE D'EVALUATION : Raisons expliquees (30%) | Premieres impressions decrites (30%) | Connecteurs logiques (20%) | Coherence (20%)",
-  },
-  {
-    id: "s15", level: "A2", topic: "Sports et sante", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Parlez d'un sport ou d'une activite physique que vous pratiquez ou aimeriez pratiquer.",
-    example_response: "INSTRUCTIONS : Decrivez l'activite, la frequence et les benefices. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Je pratique la natation deux fois par semaine. Je vais a la piscine le mardi soir et le samedi matin. La natation est excellente pour la sante parce qu'elle travaille tous les muscles du corps. J'ai commence la natation il y a deux ans et j'ai beaucoup progresse. J'aimerais aussi essayer le yoga pour ameliorer ma flexibilite.\n\nVOCABULAIRE CLE : je pratique / deux fois par semaine / c'est bon pour la sante / j'ai commence / j'aimerais / les benefices / les muscles / ameliorer\n\nRUBRIQUE D'EVALUATION : Activite bien decrite (25%) | Frequence precisee (25%) | Benefices mentionnes (25%) | Opinion personnelle (25%)",
-  },
-  {
-    id: "s16", level: "A2", topic: "Cuisine et alimentation", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez un plat typique de votre pays d'origine. Comment le prepare-t-on ? Quels sont les ingredients ?",
-    example_response: "INSTRUCTIONS : Decrivez les ingredients et les etapes de preparation. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Je vais vous parler du tagine, un plat traditionnel marocain. Pour faire un tagine, il faut de l'agneau, des carottes, des pommes de terre et des epices comme le cumin et le curcuma. D'abord, on fait revenir la viande dans l'huile d'olive. Ensuite, on ajoute les legumes et les epices. On laisse cuire pendant deux heures. C'est un plat tres savoureux que j'aime beaucoup.\n\nVOCABULAIRE CLE : les ingredients / d'abord / ensuite / on ajoute / on fait cuire / il faut / les epices / traditionnel / savoureux\n\nRUBRIQUE D'EVALUATION : Plat et origine identifies (20%) | Ingredients listes (30%) | Etapes de preparation (30%) | Vocabulaire culinaire (20%)",
-  },
-  {
-    id: "s17", level: "A2", topic: "Environnement urbain", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez votre quartier a Montreal. Qu'est-ce qu'il y a pres de chez vous ? Vous aimez votre quartier ?",
-    example_response: "INSTRUCTIONS : Decrivez les commerces, services et ambiance de votre quartier. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : J'habite dans le quartier Cote-des-Neiges. C'est un quartier tres cosmopolite et anime. Pres de chez moi, il y a plusieurs epiceries, une pharmacie, une bibliotheque et une station de metro. Il y a aussi un grand parc ou je me promene le week-end. J'aime beaucoup mon quartier parce qu'il y a tout ce dont j'ai besoin et les gens sont tres divers et sympathiques.\n\nVOCABULAIRE CLE : mon quartier / pres de chez moi / il y a / anime / cosmopolite / les commerces / les services / j'aime parce que\n\nRUBRIQUE D'EVALUATION : Quartier situe et decrit (25%) | Services mentionnes (30%) | Opinion argumentee (25%) | Adjectifs descriptifs (20%)",
-  },
-  {
-    id: "s18", level: "A2", topic: "Fetes et celebrations", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Decrivez une fete ou une celebration importante dans votre culture. Comment la celebrez-vous ?",
-    example_response: "INSTRUCTIONS : Decrivez la fete, ses traditions et votre experience personnelle. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Dans ma culture, le Nouvel An lunaire est tres important. Cette fete a lieu en janvier ou en fevrier. Toute la famille se reunit pour un grand repas. On prepare des plats traditionnels et on offre des enveloppes rouges avec de l'argent aux enfants. Il y a aussi des feux d'artifice et des danseurs de dragon dans les rues. C'est une fete tres joyeuse et coloree.\n\nVOCABULAIRE CLE : la fete / celebrer / la tradition / toute la famille / se reunir / le repas / les cadeaux / les feux d'artifice / joyeux\n\nRUBRIQUE D'EVALUATION : Fete identifiee et situee (20%) | Traditions decrites (35%) | Experience personnelle (25%) | Emotions exprimees (20%)",
-  },
-  {
-    id: "s19", level: "A2", topic: "Services publics", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Vous devez appeler pour signaler un probleme dans votre appartement. Expliquez le probleme a votre proprietaire.",
-    example_response: "INSTRUCTIONS : Simulez un appel telephonique. Expliquez clairement le probleme et ce que vous desirez. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : Bonjour Monsieur Tremblay. Je vous appelle parce qu'il y a un probleme dans mon appartement. Le chauffage ne fonctionne pas depuis hier soir. Il fait tres froid dans l'appartement, environ douze degres. J'ai aussi remarque une fuite d'eau sous l'evier de la cuisine. Pourriez-vous envoyer quelqu'un le plus vite possible ? Je suis disponible toute la journee. Merci beaucoup.\n\nVOCABULAIRE CLE : je vous appelle parce que / depuis / il ne fonctionne pas / une fuite / envoyer quelqu'un / le plus vite possible / je suis disponible\n\nRUBRIQUE D'EVALUATION : Probleme clairement explique (35%) | Details precis (25%) | Politesse appropriee (20%) | Demande formulee (20%)",
-  },
-  {
-    id: "s20", level: "A2", topic: "Apprentissage du francais", duration: 90,
-    created_at: new Date().toISOString(),
-    prompt: "Pourquoi apprenez-vous le francais ? Comment progressez-vous ? Quelles sont vos difficultes ?",
-    example_response: "INSTRUCTIONS : Expliquez vos motivations et votre progression avec des exemples concrets. Preparation : 45 secondes. Duree : 90 secondes.\n\nEXEMPLE DE REPONSE : J'apprends le francais parce que je veux travailler au Quebec et m'integrer a la societe quebecoise. Je prends des cours de francais trois fois par semaine. Je regarde aussi des films en francais avec des sous-titres. Ma plus grande difficulte est la prononciation, surtout les sons 'u' et 'eu'. Je fais des progres mais j'ai encore beaucoup a apprendre. La grammaire est aussi difficile pour moi.\n\nVOCABULAIRE CLE : j'apprends le francais parce que / je fais des progres / ma plus grande difficulte / je prends des cours / s'integrer / la prononciation / la grammaire\n\nRUBRIQUE D'EVALUATION : Motivations expliquees (25%) | Methodes d'apprentissage (25%) | Difficultes identifiees (25%) | Bilan personnel (25%)",
-  },
+          {/* Feedback */}
+          <Card>
+            <CardBody>
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wide mb-3">Evaluation detaillee</p>
+              <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed">{evaluation.feedback}</p>
+            </CardBody>
+          </Card>
 
-  // ── B1 (s21–s30) ─────────────────────────────────────────────────────────
-  {
-    id: "s21", level: "B1", topic: "Integration sociale", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Quels sont les principaux defis que vous avez rencontres en arrivant au Quebec ? Comment les avez-vous surmontes ?",
-    example_response: "INSTRUCTIONS : Organisez votre reponse en deux parties : defis et solutions. Utilisez des connecteurs logiques. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Quand je suis arrive au Quebec, j'ai rencontre plusieurs defis importants. Le premier etait la barriere linguistique. Meme si je parlais un peu francais, le francais quebecois etait tres difficile a comprendre au debut. Pour surmonter ce probleme, je me suis inscrit a des cours de francisation et j'ai pratique avec mes voisins. Le deuxieme defi etait de trouver un emploi dans mon domaine car mon diplome n'etait pas reconnu automatiquement. J'ai du passer des examens supplementaires. Aujourd'hui, je suis bien integre et je me sens comme chez moi.\n\nVOCABULAIRE CLE : la barriere linguistique / surmonter / s'integrer / faire reconnaitre / la francisation / s'adapter / au debut / progressivement\n\nRUBRIQUE D'EVALUATION : Defis clairement identifies (25%) | Solutions decrites (25%) | Organisation du discours (25%) | Richesse lexicale (25%)",
-  },
-  {
-    id: "s22", level: "B1", topic: "Environnement", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Pensez-vous que les individus peuvent faire une difference contre les changements climatiques ? Que faites-vous personnellement ?",
-    example_response: "INSTRUCTIONS : Donnez votre opinion et des exemples concrets de vos actions. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Je pense que les individus ont un role important a jouer contre les changements climatiques, meme si les gouvernements et les entreprises ont une responsabilite encore plus grande. Personnellement, j'essaie de reduire mon empreinte carbone de plusieurs facons. Je prends le transport en commun pour aller au travail. Je recycle et je composte mes dechets alimentaires. J'ai aussi reduit ma consommation de viande. De plus, j'ai installe des ampoules LED chez moi. Ces gestes individuels sont importants car ils creent une culture de responsabilite environnementale.\n\nVOCABULAIRE CLE : l'empreinte carbone / reduire / le transport en commun / recycler / composter / la responsabilite / les gestes ecologiques / contribuer\n\nRUBRIQUE D'EVALUATION : Opinion clairement exprimee (20%) | Arguments developpes (30%) | Exemples personnels concrets (30%) | Nuance et complexite (20%)",
-  },
-  {
-    id: "s23", level: "B1", topic: "Education", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Comparez le systeme educatif de votre pays d'origine avec celui du Quebec. Quelles sont les similitudes et les differences ?",
-    example_response: "INSTRUCTIONS : Structurez votre comparaison en mentionnant points communs et differences. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Il y a plusieurs differences interessantes entre le systeme educatif colombien et le systeme quebecois. Au Quebec, il y a une etape unique appelee le cegep entre le secondaire et l'universite, ce qui n'existe pas en Colombie. De plus, les frais universitaires sont beaucoup plus bas au Quebec grace aux subventions gouvernementales. En revanche, dans les deux systemes, l'education primaire et secondaire est publique et gratuite. Une autre difference est que le Quebec insiste davantage sur le bilinguisme. Dans l'ensemble, je trouve le systeme quebecois plus accessible et flexible.\n\nVOCABULAIRE CLE : en revanche / de plus / par contre / tandis que / contrairement a / en commun / la difference / la similitude / davantage\n\nRUBRIQUE D'EVALUATION : Comparaison structuree (25%) | Similitudes mentionnees (20%) | Differences expliquees (30%) | Opinion personnelle (25%)",
-  },
-  {
-    id: "s24", level: "B1", topic: "Marche du travail", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Quels secteurs d'emploi vous semblent les plus prometteurs au Quebec ? Pourquoi ? Comment vous preparez-vous pour le marche du travail quebecois ?",
-    example_response: "INSTRUCTIONS : Identifiez 2-3 secteurs et expliquez vos choix. Parlez de votre demarche personnelle. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Selon moi, les secteurs les plus prometteurs au Quebec sont la technologie de l'information, la sante et l'intelligence artificielle. Montreal est devenu un centre mondial de l'IA avec des entreprises comme Element AI et des universites de renom. La penurie de main-d'oeuvre dans la sante offre aussi de nombreuses opportunites. Pour me preparer, j'ai fait reconnaitre mon diplome d'ingenieur par l'Ordre des ingenieurs du Quebec et je suis des cours de perfectionnement en francais professionnel. Je fais aussi du reseautage en participant a des evenements professionnels.\n\nVOCABULAIRE CLE : le secteur prometteur / la penurie de main-d'oeuvre / le reseautage / faire reconnaitre / l'intelligence artificielle / les opportunites / le perfectionnement\n\nRUBRIQUE D'EVALUATION : Secteurs identifies et justifies (30%) | Preparation personnelle decrite (30%) | Connaissance du marche local (20%) | Vocabulaire professionnel (20%)",
-  },
-  {
-    id: "s25", level: "B1", topic: "Sante et bien-etre", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Comment maintenir un bon equilibre entre le travail et la vie personnelle ? Partagez vos strategies personnelles.",
-    example_response: "INSTRUCTIONS : Proposez des strategies concretes et expliquez leur efficacite. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Maintenir un bon equilibre entre le travail et la vie personnelle est un defi que beaucoup de gens connaissent. Pour ma part, j'ai adopte plusieurs strategies. D'abord, je fixe des horaires de travail stricts et je ne reponds pas aux emails professionnels apres dix-huit heures. Ensuite, je pratique le yoga deux fois par semaine, ce qui m'aide a reduire le stress. De plus, je passe du temps de qualite avec ma famille chaque soir. Je crois qu'il est essentiel de prendre des pauses et de deconnecter regulierement pour rester productif et epanoui.\n\nVOCABULAIRE CLE : l'equilibre travail-vie / deconnecter / le stress / les strategies / epanoui / prendre des pauses / la sante mentale / productif\n\nRUBRIQUE D'EVALUATION : Strategies concretes proposees (30%) | Justifications donnees (25%) | Organisation logique (25%) | Conviction et engagement (20%)",
-  },
-  {
-    id: "s26", level: "B1", topic: "Technologies", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Les reseaux sociaux ont-ils plus d'effets positifs ou negatifs sur la societe ? Donnez votre point de vue avec des exemples.",
-    example_response: "INSTRUCTIONS : Presentez les deux cotes puis donnez votre opinion personnelle. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Les reseaux sociaux ont transforme notre facon de communiquer et d'acceder a l'information. D'un cote, ils permettent de rester en contact avec la famille et les amis meme a grande distance, et ils facilitent l'organisation d'evenements communautaires. Ils ont aussi joue un role important dans des mouvements sociaux importants. D'un autre cote, ils peuvent creer des problemes d'addiction, favoriser la desinformation et nuire a la sante mentale des jeunes. Personnellement, je pense que les reseaux sociaux sont des outils neutres dont l'effet depend de la facon dont on les utilise.\n\nVOCABULAIRE CLE : d'un cote / d'un autre cote / cependant / nuire a / favoriser / la desinformation / l'addiction / personnellement je pense que\n\nRUBRIQUE D'EVALUATION : Argumentation equilibree (25%) | Exemples concrets (25%) | Opinion personnelle justifiee (30%) | Nuance du propos (20%)",
-  },
-  {
-    id: "s27", level: "B1", topic: "Culture quebecoise", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Quels aspects de la culture quebecoise vous ont le plus surpris ou impressionne depuis votre arrivee ?",
-    example_response: "INSTRUCTIONS : Decrivez 2-3 aspects culturels avec vos reactions personnelles. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Depuis mon arrivee au Quebec, plusieurs aspects culturels m'ont vraiment impressionne. D'abord, la culture du 'joual', le francais quebecois populaire, m'a surprise au debut mais j'y trouve maintenant un charme unique qui reflete l'identite distincte des Quebecois. Ensuite, j'ai ete touche par la solidarite communautaire, notamment lors des corvees de deneigement ou les voisins s'entraident naturellement. Enfin, la ferveur autour du hockey m'a fascine. Ce n'est pas seulement un sport, c'est une veritable religion sociale qui unit les gens.\n\nVOCABULAIRE CLE : me surprendre / m'impressionner / la solidarite / s'entraider / la ferveur / l'identite culturelle / distinctif / unique\n\nRUBRIQUE D'EVALUATION : Aspects culturels identifies (25%) | Reactions personnelles exprimees (30%) | Comparaison implicite avec culture d'origine (20%) | Richesse du vocabulaire (25%)",
-  },
-  {
-    id: "s28", level: "B1", topic: "Famille et societe", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Comment le role de la famille a-t-il change dans votre pays d'origine et au Quebec ? Quelles sont vos observations ?",
-    example_response: "INSTRUCTIONS : Comparez l'evolution du role familial dans les deux contextes. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : La structure familiale a beaucoup evolue dans les societes modernes. Dans mon pays d'origine, le Bresil, la famille elargie joue encore un role tres important. Les grands-parents vivent souvent avec leurs enfants et petits-enfants. Au Quebec, j'ai observe que les familles nucleaires sont plus independantes et que les individus accordent beaucoup d'importance a leur autonomie personnelle. Cependant, j'ai aussi remarque des similitudes : dans les deux cultures, les celebrations familiales comme Noel ou les anniversaires restent des moments tres importants. Je pense que la famille reste le noyau central de la societe, meme si sa forme change.\n\nVOCABULAIRE CLE : la famille elargie / la famille nucleaire / l'autonomie / les roles / evoluer / le noyau / les observations / contrairement a\n\nRUBRIQUE D'EVALUATION : Comparaison pertinente (30%) | Observations concretes (25%) | Analyse personnelle (25%) | Vocabulaire sociologique (20%)",
-  },
-  {
-    id: "s29", level: "B1", topic: "Logement et ville", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Preferez-vous vivre en ville ou a la campagne ? Justifiez votre preference avec des arguments concrets.",
-    example_response: "INSTRUCTIONS : Choisissez clairement votre preference et argumentez avec des exemples de votre experience. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : Pour ma part, je prefere vivre en ville, et particulierement a Montreal. La vie urbaine offre des avantages que je juge essentiels. D'abord, l'acces aux transports en commun me permet de me deplacer facilement sans voiture. Ensuite, la ville offre une grande diversite culturelle avec des restaurants, des musees et des evenements artistiques variees. De plus, les opportunites d'emploi sont beaucoup plus nombreuses en ville. Je reconnais cependant que la campagne offre un environnement plus calme et plus proche de la nature. Si j'avais une maison secondaire a la campagne pour les week-ends, ce serait ideal.\n\nVOCABULAIRE CLE : je prefere / d'abord / ensuite / de plus / cependant / les avantages / les inconvenients / l'acces / les opportunites\n\nRUBRIQUE D'EVALUATION : Position clairement prise (20%) | Arguments developpes (35%) | Reconnaissance des limites (15%) | Structure du discours (30%)",
-  },
-  {
-    id: "s30", level: "B1", topic: "Stereotypes et diversite", duration: 120,
-    created_at: new Date().toISOString(),
-    prompt: "Avez-vous deja vecu ou observe une situation de stereotypes ou de discrimination ? Comment avez-vous reagi ?",
-    example_response: "INSTRUCTIONS : Decrivez une situation concrete et expliquez votre reaction et ce que vous en avez appris. Preparation : 60 secondes. Duree : 120 secondes.\n\nEXEMPLE DE REPONSE : J'ai vecu une situation difficile quand j'ai cherche mon premier emploi au Quebec. Malgre mon excellente formation et mon experience, j'ai remarque que mon accent etranger semblait deranger certains recruteurs. Lors d'un entretien, on m'a dit que mon nom 'sonnait etranger'. J'ai ressenti de la frustration mais j'ai decide de rester positif et professionnel. J'ai continue mes recherches et j'ai finalement trouve un excellent emploi dans une entreprise qui valorise vraiment la diversite. Cette experience m'a appris l'importance de la perseverance et a m'engager pour l'equite en milieu de travail.\n\nVOCABULAIRE CLE : le stereotype / la discrimination / reagir / la perseverance / l'equite / valoriser / la diversite / le recruteur / l'entretien d'embauche\n\nRUBRIQUE D'EVALUATION : Situation concrete decrite (30%) | Reaction personnelle expliquee (25%) | Lecon tiree (25%) | Vocabulaire appropriate (20%)",
-  },
+          {/* Strengths / Weaknesses */}
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Card className="border-success-200 dark:border-success-800 bg-success-50 dark:bg-success-950/20">
+              <CardBody>
+                <p className="text-xs font-bold text-success-600 dark:text-success-400 uppercase tracking-wide mb-3">Points forts</p>
+                <ul className="space-y-2">
+                  {evaluation.strengths.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
+                      <CheckCircle size={14} className="text-success-500 flex-shrink-0 mt-0.5" />{s}
+                    </li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+            <Card className="border-warning-200 dark:border-warning-800 bg-warning-50 dark:bg-warning-950/20">
+              <CardBody>
+                <p className="text-xs font-bold text-warning-600 dark:text-warning-400 uppercase tracking-wide mb-3">A ameliorer</p>
+                <ul className="space-y-2">
+                  {evaluation.weaknesses.map((w, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
+                      <AlertCircle size={14} className="text-warning-500 flex-shrink-0 mt-0.5" />{w}
+                    </li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+          </div>
 
-  // ── B2 (s31–s40) ─────────────────────────────────────────────────────────
-  {
-    id: "s31", level: "B2", topic: "Politique linguistique", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "La protection du francais au Quebec est-elle une necessite ou une contrainte excessive ? Analysez la question en prenant position.",
-    example_response: "INSTRUCTIONS : Presentez une analyse nuancee puis defendez une position argumentee. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La question de la protection du francais au Quebec touche a l'identite meme de la province et suscite des debats passionnes. D'un cote, la Loi 101 a indeniablement joue un role crucial dans la preservation du francais comme langue de travail, d'enseignement et de commerce dans un contexte nord-americain ou l'anglais domine. Sans ces protections, le francais quebecois risquerait une assimilation progressive. D'un autre cote, certaines applications rigides de cette loi peuvent creer des tensions inutiles, notamment avec les communautes anglophones historiques ou dans le monde des affaires international. Je considere que la protection du francais est une necessite fondamentale, mais qu'elle doit s'exercer avec intelligence et ouverture pour ne pas nuire a la competitivite economique du Quebec ou a l'integration des nouveaux arrivants.\n\nVOCABULAIRE CLE : la politique linguistique / l'assimilation / la preservation / indeniablement / susciter des debats / la competitivite / l'identite culturelle / nuancer\n\nRUBRIQUE D'EVALUATION : Position clairement articulee (20%) | Arguments pour et contre (25%) | Nuance analytique (25%) | Vocabulaire sociolinguistique (15%) | Structure argumentative (15%)",
-  },
-  {
-    id: "s32", level: "B2", topic: "Economie et travail", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "L'immigration economique est-elle la solution a la penurie de main-d'oeuvre au Quebec ? Developpez votre analyse.",
-    example_response: "INSTRUCTIONS : Analysez le probleme puis evaluez l'efficacite de l'immigration comme solution. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La penurie de main-d'oeuvre au Quebec est un phenomene reel et structurel qui affecte de nombreux secteurs, de la restauration aux soins de sante. L'immigration economique constitue une reponse partielle mais insuffisante si elle n'est pas accompagnee de politiques d'integration efficaces. En effet, un immigrant qualifie dont les diplomes ne sont pas reconnus ou qui ne maitrise pas suffisamment le francais ne peut pas combler rapidement les besoins du marche du travail. Il faut donc combiner l'augmentation des cibles d'immigration avec une acceleration des processus de reconnaissance des qualifications, un soutien linguistique renforce et des incitatifs pour l'installation en region. L'immigration est une solution necessaire mais elle doit s'inscrire dans une vision coherente et a long terme.\n\nVOCABULAIRE CLE : la penurie / structurel / partiellement / les qualifications etrangeres / les incitatifs / l'integration / a long terme / combler\n\nRUBRIQUE D'EVALUATION : Analyse du probleme (20%) | Evaluation critique de la solution (30%) | Solutions alternatives proposees (25%) | Coherence argumentative (25%)",
-  },
-  {
-    id: "s33", level: "B2", topic: "Sante publique", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "Quelles reformes sont necessaires pour ameliorer le systeme de sante quebecois ? Quelles sont les priorites selon vous ?",
-    example_response: "INSTRUCTIONS : Identifiez les problemes actuels et proposez des reformes prioritaires argumentees. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : Le systeme de sante quebecois, malgre ses qualites fondamentales, souffre de defis structurels importants. La penurie de medecins de famille laisse plus d'un million de Quebecois sans suivi medical regulier. Les temps d'attente aux urgences sont inacceptables. Face a ces problemes, je propose trois reformes prioritaires. Premierement, etendre significativement le role des infirmieres praticiennes et des pharmaciens pour decharger les medecins des consultations de routine. Deuxiemement, investir massivement dans la numerisation des dossiers medicaux pour ameliorer la coordination des soins. Troisiemement, developper les services de sante mentale en premiere ligne, car la sante mentale est encore trop souvent negligee malgre une demande croissante. Ces reformes requierent une volonte politique et des investissements significatifs mais sont essentielles.\n\nVOCABULAIRE CLE : la reforme / structurel / la penurie / decharger / la numerisation / la coordination / la premiere ligne / necessiter / premierement / deuxiemement\n\nRUBRIQUE D'EVALUATION : Identification des problemes (20%) | Reformes proposees et justifiees (35%) | Hierarchisation des priorites (25%) | Vocabulaire medical et politique (20%)",
-  },
-  {
-    id: "s34", level: "B2", topic: "Technologie et societe", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "L'intelligence artificielle va-t-elle creer plus d'emplois qu'elle n'en detruira ? Analysez cette question avec des arguments precis.",
-    example_response: "INSTRUCTIONS : Analysez les deux scenarios avec des exemples concrets de secteurs affectes. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La question de l'impact de l'intelligence artificielle sur l'emploi est l'une des plus debattues de notre epoque. Les optimistes font valoir que comme les revolutions industrielles precedentes, l'IA va eliminer certains emplois repetitifs mais creer de nouvelles categories d'emplois dont nous n'imaginons pas encore l'existence. A Montreal, par exemple, l'essor de l'IA a genere des milliers d'emplois en science des donnees et en ethique algorithmique. Cependant, les pessimistes soulignent que cette revolution est quantitativement et qualitativement differente : l'IA peut desormais effectuer des taches cognitives complexes, menacant des professions comme la comptabilite, le droit et meme la medecine diagnostique. Ma position est que l'IA va effectivement detruire davantage d'emplois qu'elle n'en creera a court terme, mais qu'une politique de formation continue et de revenu de transition peut attenuer ces effets.\n\nVOCABULAIRE CLE : la revolution technologique / l'impact / cognitif / algorithmique / a court terme / a long terme / attenuer / la formation continue / les pessimistes / les optimistes\n\nRUBRIQUE D'EVALUATION : Analyse des deux scenarios (25%) | Exemples concrets (25%) | Position personnelle nuancee (25%) | Vocabulaire techno-economique (25%)",
-  },
-  {
-    id: "s35", level: "B2", topic: "Environnement et politique", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "Est-il juste de demander aux individus de changer leurs habitudes de consommation pour lutter contre les changements climatiques, alors que les entreprises sont les plus grands pollueurs ?",
-    example_response: "INSTRUCTIONS : Examinez la repartition des responsabilites entre individus et entreprises. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : Cette question souleve une tension fondamentale dans le debat environnemental. Il est vrai que les grandes corporations sont responsables de la majorite des emissions mondiales de carbone, et certains accusent les entreprises petrolieres d'avoir deliberement encourage le discours de la responsabilite individuelle pour detourner l'attention de leurs propres pratiques. Cependant, je ne pense pas que la question doive etre posee en termes d'opposition. Les individus, les entreprises et les gouvernements ont tous des responsabilites complementaires. Les changements de comportement individuels ont une valeur symbolique et culturelle qui influence les politiques et les normes sociales. Mais pour un impact reel, la reglementation contraignante des entreprises et une tarification effective du carbone sont indispensables. Il serait cynique d'exonerer les individus de toute responsabilite, mais dangereusement insuffisant de s'en tenir a la seule action individuelle.\n\nVOCABULAIRE CLE : la repartition des responsabilites / contraignant / la tarification du carbone / symbolique / complementaire / exonerer / indispensable / les emissions\n\nRUBRIQUE D'EVALUATION : Complexite du probleme reconnue (20%) | Argumentation rigoureuse (30%) | Position personnelle argumentee (30%) | Vocabulaire environnemental et politique (20%)",
-  },
-  {
-    id: "s36", level: "B2", topic: "Education superieure", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "L'universite est-elle encore indispensable a la reussite professionnelle ? Ou d'autres voies sont-elles tout aussi valables ?",
-    example_response: "INSTRUCTIONS : Comparez differentes voies de formation et donnez votre point de vue argumente. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La valeur du diplome universitaire est aujourd'hui remise en question par l'emergence de nouvelles voies de formation. Au Quebec, la formation professionnelle et technique produit des diplomes extremement recherches dans des secteurs comme la sante, l'informatique et les metiers de la construction, souvent avec un acces a l'emploi plus rapide et des salaires comparables. De plus, les formations en ligne certifiees et les bootcamps de programmation permettent des reconversions rapides. Cependant, l'universite reste indispensable pour certaines professions reglementees comme la medecine ou le droit, et offre une formation intellectuelle et critique que les formations courtes ne peuvent pas reproduire. Je pense que le choix depend profondement du domaine vise et du profil de chaque personne. La pluralite des voies est une richesse, a condition que toutes soient valorisees equitablement par les employeurs.\n\nVOCABULAIRE CLE : la formation professionnelle / le diplome / la reconversion / certifie / reglemente / indispensable / la pluralite / etre valorise / equitablement\n\nRUBRIQUE D'EVALUATION : Pluralite des voies reconnues (20%) | Arguments pour et contre (30%) | Position argumentee (30%) | Vocabulaire de l'education (20%)",
-  },
-  {
-    id: "s37", level: "B2", topic: "Medias et information", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "Comment distinguez-vous une source d'information fiable d'une source de desinformation ? Quelles strategies utilisez-vous ?",
-    example_response: "INSTRUCTIONS : Decrivez des strategies concretes de verification et reflechissez aux enjeux democratiques. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : A l'ere de la surproduction d'information, distinguer le vrai du faux est devenu une competence civique essentielle. Personnellement, j'utilise plusieurs strategies. D'abord, je verifie systematiquement la source : s'agit-il d'un media etabli avec une charte editoriale transparente ? Ensuite, je recherche la meme information dans plusieurs sources independantes. Je suis aussi attentif au ton emotionnel : une information qui vise principalement a susciter la colere ou la peur merite d'etre examinee avec un regard critique supplementaire. Pour les sujets scientifiques, je privilegie les etudes publiees dans des revues a comite de lecture. Le fact-checking sur des plateformes comme Agence France-Presse Factuel est aussi tres utile. La desinformation est dangereuse pour la democratie car elle erode la confiance dans les institutions communes.\n\nVOCABULAIRE CLE : la desinformation / la source fiable / le fact-checking / la charte editoriale / le comite de lecture / eroder / la democratie / systematiquement / le regard critique\n\nRUBRIQUE D'EVALUATION : Strategies concretes et variees (35%) | Enjeux democratiques identifies (20%) | Exemples d'outils (20%) | Organisation du discours (25%)",
-  },
-  {
-    id: "s38", level: "B2", topic: "Immigration et identite", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "Comment conciliez-vous votre identite d'origine et votre nouvelle identite quebecoise ? Y a-t-il des tensions ou une richesse dans cette dualite ?",
-    example_response: "INSTRUCTIONS : Reflechissez sur votre experience identitaire avec profondeur et nuance. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La question de l'identite culturelle est l'une des plus profondes que l'on puisse se poser en contexte migratoire. Au debut de mon installation au Quebec, j'ai vecu cette dualite comme une tension : je voulais m'integrer tout en preservant ce que j'etais. Progressivement, j'ai compris que l'identite n'est pas un vase clos mais une construction dynamique et evolutive. Aujourd'hui, je me definis comme une personne biculturelle : je suis a la fois Algerien et Quebecois, et ces deux identites ne se contredisent pas, elles se complementent. Ma culture d'origine m'a donne des valeurs de solidarite familiale et d'hospitalite que j'ai integrees a ma vie quebecoise. En retour, le Quebec m'a appris l'importance de l'autonomie individuelle et de la laicite. Cette richesse identitaire est un cadeau, meme si elle s'acquiert parfois douloureusement.\n\nVOCABULAIRE CLE : l'identite culturelle / biculturel / la dualite / evolutif / se completer / se definir / la laicite / l'autonomie / la tension / la richesse\n\nRUBRIQUE D'EVALUATION : Reflexion personnelle authentique (30%) | Nuance et complexite (25%) | Vocabulaire identitaire (25%) | Coherence narrative (20%)",
-  },
-  {
-    id: "s39", level: "B2", topic: "Logement et urbanisme", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "La crise du logement a Montreal : quelles en sont les causes profondes et quelles politiques permettraient de la resoudre ?",
-    example_response: "INSTRUCTIONS : Analysez les causes puis proposez des solutions politiques concretes et justifiees. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : La crise du logement a Montreal est le resultat de plusieurs facteurs structurels qui se sont accumules sur des decennies. La construction insuffisante de logements locatifs abordables, la speculation immobiliere alimentee par les faibles taux d'interet des annees 2010, et la croissance demographique liee a l'immigration ont cree une tension severe entre l'offre et la demande. Pour y remedier, plusieurs politiques me semblent indispensables. Il faudrait d'abord instaurer un registre public des loyers pour limiter les hausses abusives et les 'renovictions'. Ensuite, accelerer la construction de logements sociaux et cooperatifs en simplifiant les processus de zonage. Enfin, taxer plus lourdement les proprietes vacantes et les investisseurs etrangers pour decourager la speculation. Ces mesures necessite un courage politique certain car elles heurtent des interets economiques puissants.\n\nVOCABULAIRE CLE : la speculation immobiliere / la renovation-eviction / le registre des loyers / le zonage / la tenure cooperative / structurel / l'offre et la demande / instaurer\n\nRUBRIQUE D'EVALUATION : Analyse des causes (25%) | Politiques proposees (35%) | Justification economique (20%) | Vocabulaire urbain et politique (20%)",
-  },
-  {
-    id: "s40", level: "B2", topic: "Relations interculturelles", duration: 180,
-    created_at: new Date().toISOString(),
-    prompt: "L'interculturalisme quebecois est-il un modele efficace de gestion de la diversite ? Comparez avec d'autres approches.",
-    example_response: "INSTRUCTIONS : Definissez l'interculturalisme, comparez avec le multiculturalisme et donnez votre evaluation critique. Preparation : 90 secondes. Duree : 180 secondes.\n\nEXEMPLE DE REPONSE : L'interculturalisme quebecois se distingue du multiculturalisme canadien par son insistance sur une culture publique commune, en l'occurrence francophone, autour de laquelle les cultures minoritaires peuvent s'exprimer librement dans la sphere privee. Ce modele presente des avantages reels : il maintient une cohesion sociale autour de valeurs communes comme la laicite et le francais, tout en reconnaissant la richesse de la diversite. Cependant, il a aussi des limites. Certains critiquent le fait que la 'culture commune' soit definie de maniere trop etroite, excluant de facto certaines expressions culturelles. Comparativement, le multiculturalisme canadien accorde une valeur egale a toutes les cultures mais est parfois accuse de produire des communautes paralleles sans veritable dialogue. Je pense que l'interculturalisme est un modele plus exigeant mais potentiellement plus riche si son application est suffisamment souple et inclusive.\n\nVOCABULAIRE CLE : l'interculturalisme / le multiculturalisme / la culture publique commune / la sphere privee / la laicite / la cohesion sociale / de facto / exigeant / inclusif\n\nRUBRIQUE D'EVALUATION : Definition precise du modele (20%) | Comparaison structuree (25%) | Evaluation critique (30%) | Vocabulaire sociologique (25%)",
-  },
+          {/* Suggestions */}
+          <Card>
+            <CardBody>
+              <p className="text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wide mb-3">Conseils personnalises</p>
+              <ul className="space-y-3">
+                {evaluation.suggestions.map((s, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold text-primary-600 dark:text-primary-400">{i + 1}</div>
+                    <span className="text-sm text-surface-700 dark:text-surface-300">{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
 
-  // ── C1 (s41–s50) ─────────────────────────────────────────────────────────
-  {
-    id: "s41", level: "C1", topic: "Philosophie politique", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "La souverainete du Quebec est-elle encore un projet politique pertinent au 21e siecle ? Analysez en tenant compte des realites contemporaines.",
-    example_response: "INSTRUCTIONS : Presentez une analyse politique sophistiquee en tenant compte du contexte historique, economique et identitaire. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La question de la souverainete quebecoise a traverse le 20e siecle comme un projet emancipateur central, culminant avec les referendums de 1980 et 1995. Au 21e siecle, ce projet doit etre reexamine a la lumiere de realites nouvelles. D'un cote, les fondements identitaires demeurent : le Quebec constitue une societe distincte sur le plan linguistique, culturel et juridique, et ses aspirations a l'autodetermination restent legitimes. De plus, le cadre federal canadien genere des tensions recurrentes, notamment sur les transferts en sante et les pouvoirs en immigration. D'un autre cote, la mondialisation et l'integration economique nord-americaine ont partiellement brouille les avantages economiques d'une souverainete formelle. La question linguistique se pose aussi differemment dans un contexte numerique ou l'anglais domine globalement. Je pense que le debat souverainiste, plutot que de porter sur l'independance formelle, s'est transforme en une lutte pour une autonomie maximale a l'interieur du Canada, ce qui reflete peut-etre une maturite politique plus grande.\n\nVOCABULAIRE CLE : l'autodetermination / l'emancipation / le federalisme / les transferts fiscaux / la societe distincte / la mondialisation / l'autonomie / la pertinence / brouiller\n\nRUBRIQUE D'EVALUATION : Contextualisation historique (20%) | Analyse des arguments contemporains (30%) | Synthese nuancee (25%) | Vocabulaire politique avance (25%)",
-  },
-  {
-    id: "s42", level: "C1", topic: "Ethique et technologie", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "L'intelligence artificielle peut-elle et doit-elle prendre des decisions morales ? Analysez les implications ethiques.",
-    example_response: "INSTRUCTIONS : Developpez une reflexion philosophique et ethique approfondie sur l'IA et la prise de decision morale. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La question de la decision morale par l'intelligence artificielle souleve des enjeux philosophiques fondamentaux qui vont bien au-dela de la simple technique. Du point de vue descriptif, les systemes d'IA prennent deja des decisions ayant des implications morales : algorithmes de justice predictive, systemes de credit, triage medical. Cependant, ces decisions ne sont pas morales au sens plein du terme, car elles ne sont pas sous-tendues par une comprehension veritable des valeurs humaines mais par une optimisation statistique qui peut perpetuer des biais historiques. Du point de vue normatif, je suis convaincu que la responsabilite morale doit demeurer du domaine humain. Une machine ne peut pas etre tenue moralement responsable de ses decisions, et transmettre cette responsabilite a un algorithme serait une forme de demission ethique. La Declaration de Montreal pour un developpement responsable de l'IA, dont Montreal est l'origine, propose un cadre precieux : l'IA doit etre un outil au service de valeurs humaines decidees democratiquement, jamais leur substitut.\n\nVOCABULAIRE CLE : l'ethique algorithmique / la responsabilite morale / les biais / l'optimisation statistique / normatif / descriptif / la demission / sous-tendre / perpetuer\n\nRUBRIQUE D'EVALUATION : Maitrise des concepts philosophiques (25%) | Argumentation rigoureuse (30%) | Exemples concrets (20%) | Synthese et position personnelle (25%)",
-  },
-  {
-    id: "s43", level: "C1", topic: "Economie et inegalites", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "Les inegalites economiques croissantes representent-elles une menace pour la democratie liberale ? Analysez avec des exemples.",
-    example_response: "INSTRUCTIONS : Etablissez le lien entre inegalites economiques et sante democratique avec des exemples precis. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La relation entre inegalites economiques et democratie est l'une des questions les plus cruciales de notre epoque. Des penseurs comme Thomas Piketty ont documente avec precision la montee des inegalites dans les economies capitalistes avancees depuis les annees 1980. Au Canada et au Quebec, le centile superieur capte une part croissante de la richesse nationale, ce qui affecte la democratie de plusieurs facons. D'abord, les individus et groupes les plus riches disposent d'une capacite disproportionnee a influencer les processus politiques, que ce soit par le financement des partis, les groupes de pression ou la propriete des medias. Ensuite, les inegalites creent un sentiment de deconnexion et de defiance envers les institutions chez les citoyens ordinaires, ce qui alimente les populismes de toutes sortes. Enfin, quand l'acces a l'education de qualite et a la sante est conditionne par la richesse, l'egalite des chances — fondement de la legitimite democratique — devient une illusion. Il ne s'agit pas de plaider pour l'egalite parfaite, mais pour des niveaux d'inegalite compatibles avec une participation citoyenne effective.\n\nVOCABULAIRE CLE : les inegalites / le centile superieur / le populisme / la defiance / la legitimite democratique / disproportionne / l'egalite des chances / le groupe de pression / conditionner\n\nRUBRIQUE D'EVALUATION : Rigueur analytique (25%) | Exemples precis et pertinents (25%) | Lien inegalites-democratie argumente (30%) | Vocabulaire economique et politique (20%)",
-  },
-  {
-    id: "s44", level: "C1", topic: "Identite et mondialisation", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "La mondialisation culturelle menace-t-elle les cultures locales ou favorise-t-elle une creativite hybride enrichissante ? Defendez une position.",
-    example_response: "INSTRUCTIONS : Developpez une analyse culturelle sophistiquee qui depasse la simple opposition. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La tension entre mondialisation culturelle et particularismes locaux constitue l'une des grandes interrogations de notre epoque. Je propose de rejeter la fausse alternative entre homogeneisation culturelle redoutee et isolationnisme culturel illusoire. La mondialisation ne produit pas necessairement une culture globale uniforme mais plutot des phenomenes d'hybridation culturelle fascinants. La musique africaine incorporant des elements electroniques, la cuisine fusion ou la litterature post-coloniale en sont des exemples eloquents. Cependant, cette hybridation ne s'opere pas dans des conditions d'egalite : les industries culturelles anglophones dominent par leur puissance economique et leurs economies d'echelle, creant un risque reel d'assimilation pour les cultures minoritaires peu capitalisees. Le Quebec en est un exemple paradigmatique. Des politiques culturelles actives — quotas de diffusion, financement public, conventions internationales comme celle de l'UNESCO de 2005 — sont necessaires pour maintenir un espace de creation et d'expression culturelle diversifie. Je conclus que la mondialisation peut effectivement etre une chance si elle est regulee pour garantir la diversite.\n\nVOCABULAIRE CLE : l'hybridation culturelle / le particularisme / l'assimilation / les economies d'echelle / paradigmatique / post-colonial / la convention culturelle / reguler / eloquent\n\nRUBRIQUE D'EVALUATION : Depassement de la fausse alternative (20%) | Exemples culturels pertinents (25%) | Argumentation pour les politiques culturelles (25%) | Vocabulaire culturel avance (30%)",
-  },
-  {
-    id: "s45", level: "C1", topic: "Reconciliation autochtone", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "Que signifie concretement la reconciliation avec les peuples autochtones au Quebec ? Au-dela des symboles, quelles transformations reelles sont necessaires ?",
-    example_response: "INSTRUCTIONS : Distinguez les gestes symboliques des transformations institutionnelles profondes. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La reconciliation avec les peuples autochtones est devenue un impératif moral et politique au Canada depuis le rapport de la Commission de verite et reconciliation de 2015. Au Quebec, cette question prend une dimension particuliere car elle s'inscrit dans un contexte ou les Premieres Nations negocient leur autonomie avec deux paliers de gouvernement aux interets parfois divergents. La reconciliation symbolique — rebaptiser des lieux, reconnaitre les territoires non cedes, presenter des excuses officielles — est necessaire mais largement insuffisante. Les transformations reelles requises sont d'une autre nature. Il faut d'abord garantir l'eau potable dans toutes les communautes, ce que des nations comme les Naskapis et certaines communautes cries attendent encore. Il faut ensuite transferer reellement les competences en education et en sante aux nations autochtones selon leurs propres termes. Il faut aussi reformer le systeme de protection de l'enfance qui surrepresente dramatiquement les enfants autochtones. Enfin, il faut negocier de bonne foi des ententes de partage des ressources naturelles sur les territoires ancestraux. La reconciliation ne peut pas etre unilateralement definie par les colonisateurs.\n\nVOCABULAIRE CLE : la reconciliation / les Premieres Nations / l'autodetermination / les territoires non cedes / la surrepresentation / le colonialisme / la bonne foi / l'autonomie gouvernementale\n\nRUBRIQUE D'EVALUATION : Distinction symbolique/substantiel (25%) | Transformations concretes identifiees (30%) | Complexite politique reconnue (25%) | Vocabulaire autochtone et politique (20%)",
-  },
-  {
-    id: "s46", level: "C1", topic: "Philosophie de la langue", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "La langue francaise peut-elle survivre a l'ere numerique et a la domination de l'anglais comme langue de la technologie ? Analysez les enjeux.",
-    example_response: "INSTRUCTIONS : Analysez les menaces specifiques que le numerique fait peser sur le francais et les strategies de resistance possibles. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La survie du francais a l'ere numerique constitue un defi existentiel pour la francophonie mondiale et pour le Quebec en particulier. Les menaces sont reelles et specifiques. Premierement, les interfaces numeriques, les langages de programmation, les plateformes de reseaux sociaux et les modeles d'intelligence artificielle sont massivement developpes en anglais, creant une asymetrie profonde dans la production et la consommation de contenus numeriques. Deuxiemement, les jeunes Quebecois, exposes quotidiennement a des contenus anglophones sur YouTube, TikTok ou Twitch, developpent une aisance croissante en anglais qui peut progressivement eroder l'usage spontane du francais. Cependant, cette situation n'est pas inevitablement fatale. La francophonie mondiale represente 300 millions de locuteurs, dont une part croissante en Afrique subsaharienne, ce qui constitue un marche considerable pour les entreprises technologiques. Des initiatives comme les grands modeles de langage multilingues, les politiques de localisation obligatoire et le soutien aux entreprises technologiques francophones peuvent contrebalancer ces tendances. La survie du francais dans le numerique requiert une volonte politique soutenue et une innovation culturelle audacieuse.\n\nVOCABULAIRE CLE : l'asymetrie / la francophonie / eroder / la localisation / les modeles de langage / contrebalancer / l'aisance / la survie linguistique / audacieux\n\nRUBRIQUE D'EVALUATION : Identification des menaces specifiques (25%) | Analyse des opportunites (20%) | Solutions proposees (25%) | Maitrise du vocabulaire numerique et linguistique (30%)",
-  },
-  {
-    id: "s47", level: "C1", topic: "Bioethique", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "L'aide medicale a mourir doit-elle etre etendue aux personnes souffrant de troubles mentaux graves ? Analysez les arguments ethiques.",
-    example_response: "INSTRUCTIONS : Abordez la question avec sensibilite et rigueur philosophique en pesant les arguments de l'autonomie et de la vulnerabilite. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La question de l'extension de l'aide medicale a mourir aux personnes souffrant de troubles mentaux graves est l'une des plus dechirants de la bioethique contemporaine. Elle met en tension deux valeurs fondamentales : l'autonomie de la personne et la protection des personnes vulnerables. Les partisans de cette extension font valoir que discriminer entre les souffrances physiques et les souffrances psychiatriques est une forme de stigmatisation des maladies mentales, et que le principe d'autonomie exige de respecter le choix d'individus dont la souffrance est verifiablement irremediable malgre des traitements adequats. Les opposants soulignent avec force que determiner le caractere irremediable d'une maladie mentale est epistemologiquement beaucoup plus difficile que pour une maladie physique, et que les personnes en crise psychiatrique peuvent exprimer un desir de mort qui n'est pas leur volonte profonde. Je pense que cette extension requiert des garanties procedurales extraordinairement rigoureuses, incluant plusieurs avis psychiatriques independants sur une longue periode, et qu'elle ne devrait pas etre mise en oeuvre tant que le systeme de sante mentale ne dispose pas de ressources suffisantes pour offrir des alternatives therapeutiques completes.\n\nVOCABULAIRE CLE : la bioethique / l'autonomie / la vulnerabilite / epistemologique / irremediable / la stigmatisation / procedural / la souffrance refractive / dechirer\n\nRUBRIQUE D'EVALUATION : Exposition equilibree des arguments (25%) | Rigueur philosophique (25%) | Sensibilite aux enjeux de vulnerabilite (25%) | Vocabulaire bioethique (25%)",
-  },
-  {
-    id: "s48", level: "C1", topic: "Democratie et participation", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "Les democraties liberales sont-elles equipees pour faire face aux crises du 21e siecle — climatique, sanitaire, informationnelle ? Analysez leurs forces et leurs limites.",
-    example_response: "INSTRUCTIONS : Evaluez les mecanismes democratiques face aux defis contemporains avec des exemples precis. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : Les democraties liberales font face a un paradoxe aigu : elles sont fondees sur des cycles electoraux courts et des logiques de compromis qui entrent en tension avec des crises qui exigent des actions a long terme et des sacrifices immediats. La pandemie de COVID-19 a illustre a la fois les forces et les limites de ces systemes. Les democracies ont en general mieux protege les libertes civiles et produit des vaccins plus rapidement grace a leurs ecosystemes d'innovation, mais certaines ont peche par incoherence communicationnelle et par l'incapacite a construire un consensus durable. Face a la crise climatique, la logique electorale incite les gouvernements a repousser des decisions couteuses pour les electeurs actuels, au detriment des generations futures qui n'ont pas de vote. La crise informationnelle, enfin, fragilise les fondements epistemiques memes de la democratie en rendant difficile la formation d'une opinion publique informee. Pour autant, je demeure convaincu que les alternatives autoritaires produisent des resultats encore bien pires sur le long terme. Ce dont nous avons besoin, c'est d'institutions democratiques renovees : participation citoyenne deliberative, assemblees de citoyens tires au sort, protections constitutionnelles des interets des generations futures.\n\nVOCABULAIRE CLE : le cycle electoral / le compromis / epistemique / deliberatif / le tirage au sort / les generations futures / fragiliser / incoherence / l'ecosysteme d'innovation\n\nRUBRIQUE D'EVALUATION : Analyse des trois crises (25%) | Forces et limites identifiees (25%) | Propositions institutionnelles (25%) | Maitrise du vocabulaire politique (25%)",
-  },
-  {
-    id: "s49", level: "C1", topic: "Litterature et societe", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "La litterature peut-elle encore jouer un role transformateur dans la societe contemporaine, a l'ere des reseaux sociaux et des contenus courts ?",
-    example_response: "INSTRUCTIONS : Reflechissez au role social de la litterature en tenant compte des transformations des pratiques culturelles numeriques. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : La question du role transformateur de la litterature est d'une actualite brulante a l'heure ou les pratiques de lecture s'erodent face aux contenus courts et aux stimulations immediates des reseaux sociaux. Je soutiens que la litterature conserve un potentiel transformateur unique, mais qu'elle doit accepter de le reinventer. La specificite de la grande litterature reside dans sa capacite a generer une experience d'immersion prolongee dans une conscience etrangere, ce que ni le tweet ni la video courte ne peuvent produire. Cette capacite empathique — lire Proust, Dany Laferriere ou Kim Thuy, c'est habiter temporairement une autre vie — est politiquement et moralement irremplaçable dans des societes de plus en plus fragmentees. Cependant, la litterature doit aussi s'adapter : les formes breves, la fanfiction, la litterature numerique et les adaptations cinematographiques peuvent servir de portes d'entree vers des oeuvres plus exigeantes. Le Quebec a cette chance d'une litterature vivante et diverse qui explore les questions d'identite, d'immigration et de memoire avec une profondeur remarquable. La litterature ne transforme peut-etre plus les societes a elle seule, mais elle demeure un espace de resistance au conformisme et a la superficialite.\n\nVOCABULAIRE CLE : transformateur / l'empathie / l'immersion / la fragmentation / s'eroder / le conformisme / reinventer / irremplaçable / la fanfiction / la conscience\n\nRUBRIQUE D'EVALUATION : Argument central bien construit (25%) | Exemples litteraires pertinents (25%) | Prise en compte du contexte numerique (25%) | Vocabulaire litteraire et culturel (25%)",
-  },
-  {
-    id: "s50", level: "C1", topic: "Avenir du Quebec", duration: 240,
-    created_at: new Date().toISOString(),
-    prompt: "Quel Quebec voulez-vous dans 25 ans ? Formulez une vision coherente qui tient compte des defis actuels et de ce que vous apportez en tant que nouvel arrivant.",
-    example_response: "INSTRUCTIONS : Formulez une vision personnelle et argumentee du Quebec futur. Soyez ambitieux, precis et ancrez votre vision dans les realites actuelles. Preparation : 120 secondes. Duree : 240 secondes.\n\nEXEMPLE DE REPONSE : Imaginer le Quebec de 2050 me remplit a la fois d'espoir et d'inquietude constructive. La vision que je porte est celle d'un Quebec qui aura reussi sa triple transition : energetique, demographique et identitaire. Sur le plan energetique, le Quebec dispose deja d'un avantage exceptionnel avec son hydroelectricite propre. Je vois un Quebec qui aura su capitaliser sur cette richesse pour devenir un leader mondial de la decarbonisation industrielle, attirant des industries propres et exportant son expertise. Sur le plan demographique, le defi du vieillissement necessite une immigration soutenue et une integration veritable, pas simplement administrative. J'apporte moi-meme une formation en ingenierie et une perspective internationale qui, si elle est pleinement valorisee, peut contribuer a cette transformation. Sur le plan identitaire, je vois un Quebec francophone et confiant, qui n'a plus besoin de se proteger de la diversite mais qui la considere comme une source de renouvellement culturel. Un Quebec ou les descendants d'immigrants de la deuxieme generation participent pleinement a la vie politique, scientifique et artistique. C'est la contribution que je veux apporter : construire ce Quebec ouvert, innovant et distinctif, en francais.\n\nVOCABULAIRE CLE : la triple transition / capitaliser / la decarbonisation / le vieillissement / l'expertise / le renouvellement / confiant / valoriser / contribuer / distinctif\n\nRUBRIQUE D'EVALUATION : Vision coherente et argumentee (30%) | Ancrage dans les realites actuelles (25%) | Contribution personnelle articulee (25%) | Vision inspirante et credible (20%)",
-  },
-];
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => { setSelected(selected); setStage("prep"); }}>
+              Recommencer
+            </Button>
+            <Button className="flex-1" icon={<ArrowRight size={16} />} iconPosition="right" onClick={() => setStage("list")}>
+              Autre exercice
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
-export const sampleWritingPrompts: WritingPrompt[] = [
-  { id: "w1", level: "A2", prompt: "Vous voulez inviter un ami quebecois a votre anniversaire. Ecrivez-lui un message pour l'inviter avec la date, l'heure et le lieu.", word_count_min: 60, word_count_max: 120, topic: "Communication informelle", created_at: new Date().toISOString() },
-  { id: "w2", level: "B1", prompt: "Vous avez recemment assiste a un evenement culturel a Montreal. Decrivez cet evenement et recommandez-le ou non a d'autres personnes.", word_count_min: 150, word_count_max: 250, topic: "Vie culturelle", created_at: new Date().toISOString() },
-  { id: "w3", level: "B2", prompt: "La ville de Montreal envisage d'interdire les voitures dans le centre-ville les fins de semaine. Redigez une lettre a la mairie pour exprimer votre opinion.", word_count_min: 250, word_count_max: 400, topic: "Vie urbaine et environnement", created_at: new Date().toISOString() },
-  { id: "w4", level: "C1", prompt: "Selon vous, la mondialisation represente-t-elle une menace ou une opportunite pour les cultures locales comme la culture quebecoise ? Argumentez avec des exemples precis.", word_count_min: 400, word_count_max: 600, topic: "Mondialisation et culture", created_at: new Date().toISOString() },
-];
+  return null;
+}
