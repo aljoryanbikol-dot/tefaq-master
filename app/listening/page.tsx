@@ -441,38 +441,37 @@ export default function ListeningPage() {
 
               {/* Controls row */}
               <div className="flex items-center gap-3">
-                {/* Play button */}
-                {isIdle && (
-                  <button
-                    onClick={handlePlay}
-                    title="Lecture"
-                    className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg flex-shrink-0"
-                  >
-                    <Play size={20} className="text-purple-600 ml-0.5" />
-                  </button>
-                )}
-
-                {/* Pause button */}
-                {isPlaying && (
-                  <button
-                    onClick={handlePause}
-                    title="Pause"
-                    className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg flex-shrink-0"
-                  >
-                    <Pause size={20} className="text-purple-600" />
-                  </button>
-                )}
-
-                {/* Resume button */}
-                {isPaused && (
-                  <button
-                    onClick={handleResume}
-                    title="Reprendre"
-                    className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg flex-shrink-0"
-                  >
-                    <Play size={20} className="text-purple-600 ml-0.5" />
-                  </button>
-                )}
+                {/* Stable wrapper — keeps one DOM node at this position so React
+                    never hits a removeChild mismatch when ttsState changes mid-render */}
+                <div className="w-12 h-12 flex-shrink-0">
+                  {isIdle && (
+                    <button
+                      onClick={handlePlay}
+                      title="Lecture"
+                      className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                    >
+                      <Play size={20} className="text-purple-600 ml-0.5" />
+                    </button>
+                  )}
+                  {isPlaying && (
+                    <button
+                      onClick={handlePause}
+                      title="Pause"
+                      className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                    >
+                      <Pause size={20} className="text-purple-600" />
+                    </button>
+                  )}
+                  {isPaused && (
+                    <button
+                      onClick={handleResume}
+                      title="Reprendre"
+                      className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                    >
+                      <Play size={20} className="text-purple-600 ml-0.5" />
+                    </button>
+                  )}
+                </div>
 
                 {/* Stop */}
                 <button
